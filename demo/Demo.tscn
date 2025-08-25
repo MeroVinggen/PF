@@ -17,7 +17,7 @@ metadata/_custom_type_script = "uid://iy0w45a50gju"
 [node name="PathfinderObstacle" type="Node2D" parent="."]
 position = Vector2(355, 112)
 script = ExtResource("3_eaos1")
-obstacle_polygon = PackedVector2Array(-12, -12, 37, -12, 37, 37, -12, 37)
+obstacle_polygon = PackedVector2Array(-12, -12, 55, -12, 37, 55, -12, 37)
 metadata/_custom_type_script = "uid://dsw8ahtan3evv"
 
 [node name="PathfinderObstacle2" type="Node2D" parent="."]
@@ -30,4 +30,8 @@ metadata/_custom_type_script = "uid://dsw8ahtan3evv"
 position = Vector2(126, 120)
 script = ExtResource("4_wlawv")
 agent_polygon = PackedVector2Array(-5, -5, 5, -5, 5, 5, -5, 5)
+stuck_threshold = null
+stuck_time_threshold = null
+unstuck_force = null
+corner_avoidance_distance = null
 metadata/_custom_type_script = "uid://c0akywfx8v7xg"

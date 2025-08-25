@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3 uid="uid://b4ha7wyhvby2n"]
+
+[ext_resource type="Script" uid="uid://cwh8y4ydbcsfn" path="res://demo/demo.gd" id="1_uqdso"]
+[ext_resource type="Script" uid="uid://iy0w45a50gju" path="res://addons/pathfinding2d/pathfinder_system.gd" id="2_umghc"]
+[ext_resource type="Script" uid="uid://dsw8ahtan3evv" path="res://addons/pathfinding2d/pathfinder_obstacle.gd" id="3_eaos1"]
+[ext_resource type="Script" uid="uid://c0akywfx8v7xg" path="res://addons/pathfinding2d/pathfinder.gd" id="4_wlawv"]
+
+[node name="Demo" type="Node2D"]
+script = ExtResource("1_uqdso")
+
+[node name="PathfinderSystem" type="Node2D" parent="."]
+script = ExtResource("2_umghc")
+bounds_polygon = PackedVector2Array(0, 0, 700, 0, 700, 700, 0, 700)
+debug_draw = true
+metadata/_custom_type_script = "uid://iy0w45a50gju"
+
+[node name="PathfinderObstacle" type="Node2D" parent="."]
+position = Vector2(355, 112)
+script = ExtResource("3_eaos1")
+obstacle_polygon = PackedVector2Array(0, 0, 25, 0, 25, 25, 0, 25)
+metadata/_custom_type_script = "uid://dsw8ahtan3evv"
+
+[node name="PathfinderObstacle2" type="Node2D" parent="."]
+position = Vector2(265, 296)
+script = ExtResource("3_eaos1")
+obstacle_polygon = PackedVector2Array(0, 0, 50, 0, 50, 50, 0, 50)
+metadata/_custom_type_script = "uid://dsw8ahtan3evv"
+
+[node name="Pathfinder" type="Node2D" parent="."]
+position = Vector2(126, 120)
+script = ExtResource("4_wlawv")
+agent_polygon = PackedVector2Array(0, 0, 10, 0, 10, 10, 0, 10)
+metadata/_custom_type_script = "uid://c0akywfx8v7xg"

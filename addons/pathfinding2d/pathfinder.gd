@@ -1,0 +1,209 @@
+@tool
+extends Node2D
+class_name Pathfinder
+
+@export var agent_polygon: PackedVector2Array = PackedVector2Array([
+	Vector2(-10, -10),
+	Vector2(10, -10),
+	Vector2(10, 10),
+	Vector2(-10, 10)
+])
+
+@export var movement_speed: float = 200.0
+@export var rotation_speed: float = 5.0
+@export var auto_move: bool = true
+@export var debug_draw: bool = true
+@export var agent_color: Color = Color.GREEN
+@export var path_color: Color = Color.YELLOW
+
+var system: PathfinderSystem
+var current_path: PackedVector2Array = PackedVector2Array()
+var target_position: Vector2
+var path_index: int = 0
+var is_moving: bool = false
+
+signal path_found(path: PackedVector2Array)
+signal destination_reached()
+signal path_blocked()
+
+func _ready():
+	if not Engine.is_editor_hint():
+		add_to_group("pathfinders")
+		_find_system()
+
+func _find_system():
+	system = get_tree().get_first_node_in_group("pathfinder_systems") as PathfinderSystem
+	if system:
+		system.register_pathfinder(self)
+
+func _exit_tree():
+	if system and not Engine.is_editor_hint():
+		system.unregister_pathfinder(self)
+
+func _process(delta):
+	if Engine.is_editor_hint() or not auto_move or not is_moving:
+		return
+	
+	_follow_path(delta)
+
+func find_path_to(destination: Vector2) -> bool:
+	if not system:
+		_find_system()
+		if not system:
+			return false
+	
+	var path = system.find_path(global_position, destination, agent_polygon)
+	
+	if path.is_empty():
+		path_blocked.emit()
+		return false
+	
+	current_path = path
+	target_position = destination
+	path_index = 0
+	is_moving = true
+	
+	path_found.emit(current_path)
+	return true
+
+func move_to(destination: Vector2):
+	if find_path_to(destination):
+		is_moving = true
+	else:
+		print("No path found to destination")
+
+func stop_movement():
+	is_moving = false
+	current_path.clear()
+	path_index = 0
+
+func _follow_path(delta):
+	if current_path.is_empty() or path_index >= current_path.size():
+		_on_destination_reached()
+		return
+	
+	var current_target = current_path[path_index]
+	var distance_to_target = global_position.distance_to(current_target)
+	
+	if distance_to_target < 10.0:  # Close enough to current waypoint
+		path_index += 1
+		if path_index >= current_path.size():
+			_on_destination_reached()
+			return
+		current_target = current_path[path_index]
+	
+	# Move towards current target
+	var direction = (current_target - global_position).normalized()
+	var movement = direction * movement_speed * delta
+	global_position += movement
+	
+	# Rotate towards movement direction
+	if direction.length() > 0.1:
+		var target_angle = direction.angle()
+		rotation = lerp_angle(rotation, target_angle, rotation_speed * delta)
+
+func _on_destination_reached():
+	is_moving = false
+	current_path.clear()
+	path_index = 0
+	destination_reached.emit()
+
+func get_current_path() -> PackedVector2Array:
+	return current_path
+
+func is_path_valid() -> bool:
+	if not system or current_path.is_empty():
+		return false
+	
+	# Check if current path is still valid (no new obstacles in the way)
+	for i in range(current_path.size() - 1):
+		var start = current_path[i]
+		var end = current_path[i + 1]
+		
+		if system._is_position_blocked(start, agent_polygon) or \
+		   system._is_position_blocked(end, agent_polygon):
+			return false
+	
+	return true
+
+func recalculate_path():
+	if not is_moving:
+		return
+	
+	var destination = target_position
+	if current_path.size() > path_index:
+		destination = current_path[-1]  # Use the final destination
+	
+	find_path_to(destination)
+
+func get_agent_bounds() -> Rect2:
+	if agent_polygon.is_empty():
+		return Rect2()
+	
+	var min_x = agent_polygon[0].x
+	var max_x = agent_polygon[0].x
+	var min_y = agent_polygon[0].y
+	var max_y = agent_polygon[0].y
+	
+	for point in agent_polygon:
+		min_x = min(min_x, point.x)
+		max_x = max(max_x, point.x)
+		min_y = min(min_y, point.y)
+		max_y = max(max_y, point.y)
+	
+	return Rect2(min_x, min_y, max_x - min_x, max_y - min_y)
+
+func _draw():
+	if not debug_draw:
+		return
+	
+	# Draw agent polygon
+	if agent_polygon.size() >= 3:
+		draw_colored_polygon(agent_polygon, agent_color * 0.7)
+		var outline = agent_polygon + PackedVector2Array([agent_polygon[0]])
+		draw_polyline(outline, agent_color, 2.0)
+	else:
+		# Fallback to circle if polygon is invalid
+		draw_circle(Vector2.ZERO, 10.0, agent_color)
+	
+	# Draw current path
+	if current_path.size() > 1:
+		for i in range(current_path.size() - 1):
+			var start = to_local(current_path[i])
+			var end = to_local(current_path[i + 1])
+			draw_line(start, end, path_color, 3.0)
+		
+		# Draw waypoints
+		for i in range(current_path.size()):
+			var point = to_local(current_path[i])
+			var color = path_color
+			if i == path_index:
+				color = Color.WHITE  # Highlight current target
+			draw_circle(point, 5.0, color)
+	
+	# Draw target position
+	if is_moving and target_position != Vector2.ZERO:
+		var target_local = to_local(target_position)
+		draw_circle(target_local, 8.0, Color.MAGENTA)
+
+func _get_configuration_warnings() -> PackedStringArray:
+	var warnings: PackedStringArray = []
+	
+	if agent_polygon.size() < 3:
+		warnings.append("Agent polygon needs at least 3 points")
+	
+	if movement_speed <= 0:
+		warnings.append("Movement speed must be greater than 0")
+	
+	return warnings
+
+# Helper functions for external use
+func get_distance_to_target() -> float:
+	if current_path.is_empty() or path_index >= current_path.size():
+		return 0.0
+	return global_position.distance_to(current_path[path_index])
+
+func get_distance_to_destination() -> float:
+	if target_position == Vector2.ZERO:
+		return 0.0
+	return global_position.distance_to(target_position)

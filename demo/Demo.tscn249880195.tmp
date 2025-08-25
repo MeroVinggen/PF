@@ -1,0 +1,39 @@
+[gd_scene load_steps=6 format=3 uid="uid://b4ha7wyhvby2n"]
+
+[ext_resource type="Script" uid="uid://cwh8y4ydbcsfn" path="res://demo/demo.gd" id="1_uqdso"]
+[ext_resource type="Script" uid="uid://2vxq6dnxryk" path="res://addons/pathfinding2d/nodes/pathfinder_2d.gd" id="2_umghc"]
+[ext_resource type="Script" uid="uid://dd34572wwnfat" path="res://addons/pathfinding2d/nodes/pathfinder_system_2d.gd" id="3_eaos1"]
+[ext_resource type="Script" uid="uid://bockah56npcn4" path="res://addons/pathfinding2d/nodes/pathfinder_obstacle_2d.gd" id="4_wlawv"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_umghc"]
+radius = 45.0999
+
+[node name="Demo" type="Node2D"]
+script = ExtResource("1_uqdso")
+
+[node name="Pathfinder2D" type="Node2D" parent="."]
+position = Vector2(145, 210)
+script = ExtResource("2_umghc")
+metadata/_custom_type_script = "uid://2vxq6dnxryk"
+
+[node name="PathfinderObstacle2D" type="StaticBody2D" parent="."]
+position = Vector2(635, 172)
+script = ExtResource("4_wlawv")
+metadata/_custom_type_script = "uid://bockah56npcn4"
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="PathfinderObstacle2D"]
+polygon = PackedVector2Array(-12, -27, 84, -42, 88, 81, -102, 73)
+
+[node name="PathfinderObstacle2D2" type="StaticBody2D" parent="."]
+position = Vector2(600, 423)
+script = ExtResource("4_wlawv")
+metadata/_custom_type_script = "uid://bockah56npcn4"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PathfinderObstacle2D2"]
+shape = SubResource("CircleShape2D_umghc")
+
+[node name="PathfinderSystem2D" type="Node2D" parent="." node_paths=PackedStringArray("obstacles", "pathfinders")]
+script = ExtResource("3_eaos1")
+obstacles = [NodePath("../PathfinderObstacle2D"), NodePath("../PathfinderObstacle2D2")]
+pathfinders = [NodePath("../Pathfinder2D")]
+metadata/_custom_type_script = "uid://dd34572wwnfat"

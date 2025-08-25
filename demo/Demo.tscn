@@ -11,7 +11,9 @@ script = ExtResource("1_uqdso")
 [node name="PathfinderSystem" type="Node2D" parent="."]
 script = ExtResource("2_umghc")
 bounds_polygon = PackedVector2Array(0, 0, 700, 0, 700, 700, 0, 700)
+grid_size = 50.0
 debug_draw = true
+agent_buffer = null
 metadata/_custom_type_script = "uid://iy0w45a50gju"
 
 [node name="PathfinderObstacle" type="Node2D" parent="."]

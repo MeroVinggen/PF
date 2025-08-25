@@ -27,14 +27,21 @@ signal destination_reached()
 signal path_blocked()
 
 func _ready():
+	add_to_group("pathfinders")
 	if not Engine.is_editor_hint():
-		add_to_group("pathfinders")
-		_find_system()
+		# Use call_deferred to ensure all nodes are ready
+		call_deferred("_find_system")
 
 func _find_system():
 	system = get_tree().get_first_node_in_group("pathfinder_systems") as PathfinderSystem
 	if system:
 		system.register_pathfinder(self)
+		print("Pathfinder connected to system")
+	else:
+		print("Warning: No PathfinderSystem found!")
+		# Try again after a short delay
+		await get_tree().create_timer(0.1).timeout
+		_find_system()
 
 func _exit_tree():
 	if system and not Engine.is_editor_hint():
@@ -48,13 +55,14 @@ func _process(delta):
 
 func find_path_to(destination: Vector2) -> bool:
 	if not system:
-		_find_system()
-		if not system:
-			return false
+		print("No pathfinding system available")
+		return false
 	
+	print("Pathfinder requesting path to: ", destination)
 	var path = system.find_path(global_position, destination, agent_polygon)
 	
 	if path.is_empty():
+		print("Pathfinder: No path found")
 		path_blocked.emit()
 		return false
 	
@@ -63,6 +71,7 @@ func find_path_to(destination: Vector2) -> bool:
 	path_index = 0
 	is_moving = true
 	
+	print("Pathfinder: Path found with ", path.size(), " waypoints")
 	path_found.emit(current_path)
 	return true
 
@@ -85,7 +94,7 @@ func _follow_path(delta):
 	var current_target = current_path[path_index]
 	var distance_to_target = global_position.distance_to(current_target)
 	
-	if distance_to_target < 10.0:  # Close enough to current waypoint
+	if distance_to_target < 15.0:  # Increased threshold for better movement
 		path_index += 1
 		if path_index >= current_path.size():
 			_on_destination_reached()
@@ -106,6 +115,7 @@ func _on_destination_reached():
 	is_moving = false
 	current_path.clear()
 	path_index = 0
+	print("Pathfinder: Destination reached!")
 	destination_reached.emit()
 
 func get_current_path() -> PackedVector2Array:

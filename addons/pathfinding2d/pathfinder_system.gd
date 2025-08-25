@@ -9,8 +9,9 @@ class_name PathfinderSystem
 	Vector2(-500, 500)
 ])
 
-@export var grid_size: float = 50.0
+@export var grid_size: float = 25.0  # Reduced grid size for better pathfinding
 @export var debug_draw: bool = false
+@export var agent_buffer: float = 5.0  # Buffer distance to avoid touching obstacles
 
 var grid: Dictionary = {}
 var obstacles: Array[PathfinderObstacle] = []
@@ -34,6 +35,7 @@ class PathNode:
 		f_score = g + h
 
 func _ready():
+	add_to_group("pathfinder_systems")
 	if not Engine.is_editor_hint():
 		_initialize_system()
 
@@ -41,20 +43,28 @@ func _initialize_system():
 	_build_grid()
 	_register_obstacles()
 	_register_pathfinders()
+	print("PathfinderSystem initialized with ", grid.size(), " grid points")
 
 func _build_grid():
 	grid.clear()
 	var bounds = _get_bounds_rect()
+	print("Building grid with bounds: ", bounds)
 	
-	for x in range(int(bounds.position.x), int(bounds.position.x + bounds.size.x), int(grid_size)):
-		for y in range(int(bounds.position.y), int(bounds.position.y + bounds.size.y), int(grid_size)):
+	var steps_x = int(bounds.size.x / grid_size) + 1
+	var steps_y = int(bounds.size.y / grid_size) + 1
+	
+	for i in steps_x:
+		for j in steps_y:
+			var x = bounds.position.x + (i * grid_size)
+			var y = bounds.position.y + (j * grid_size)
 			var pos = Vector2(x, y)
+			
 			if _is_point_in_polygon(pos, bounds_polygon):
 				grid[pos] = true
 
 func _get_bounds_rect() -> Rect2:
 	if bounds_polygon.is_empty():
-		return Rect2()
+		return Rect2(-500, -500, 1000, 1000)
 	
 	var min_x = bounds_polygon[0].x
 	var max_x = bounds_polygon[0].x
@@ -71,7 +81,7 @@ func _get_bounds_rect() -> Rect2:
 
 func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
 	if polygon.size() < 3:
-		return false
+		return true  # If no valid bounds, allow all points
 	
 	var inside = false
 	var j = polygon.size() - 1
@@ -93,6 +103,7 @@ func _register_obstacles():
 	for node in nodes:
 		if node is PathfinderObstacle:
 			obstacles.append(node)
+	print("Registered ", obstacles.size(), " obstacles")
 
 func _register_pathfinders():
 	pathfinders.clear()
@@ -100,6 +111,7 @@ func _register_pathfinders():
 	for node in nodes:
 		if node is Pathfinder:
 			pathfinders.append(node)
+	print("Registered ", pathfinders.size(), " pathfinders")
 
 func register_obstacle(obstacle: PathfinderObstacle):
 	if obstacle not in obstacles:
@@ -116,16 +128,53 @@ func unregister_pathfinder(pathfinder: Pathfinder):
 	pathfinders.erase(pathfinder)
 
 func find_path(start: Vector2, end: Vector2, agent_size: PackedVector2Array = PackedVector2Array()) -> PackedVector2Array:
+	print("Finding path from ", start, " to ", end)
+	print("Agent size: ", agent_size.size(), " points")
+	
 	var start_grid = _snap_to_grid(start)
 	var end_grid = _snap_to_grid(end)
 	
-	if not grid.has(start_grid) or not grid.has(end_grid):
+	print("Grid start: ", start_grid, " Grid end: ", end_grid)
+	
+	if not grid.has(start_grid):
+		print("Start position not in grid")
+		# Try to find nearest valid grid point
+		start_grid = _find_nearest_valid_position(start_grid, agent_size)
+		if start_grid == Vector2.INF:
+			return PackedVector2Array()
+	
+	if not grid.has(end_grid):
+		print("End position not in grid")
+		# Try to find nearest valid grid point
+		end_grid = _find_nearest_valid_position(end_grid, agent_size)
+		if end_grid == Vector2.INF:
+			return PackedVector2Array()
+	
+	if _is_position_blocked(start_grid, agent_size):
+		print("Start position is blocked")
 		return PackedVector2Array()
 	
-	if _is_position_blocked(start_grid, agent_size) or _is_position_blocked(end_grid, agent_size):
+	if _is_position_blocked(end_grid, agent_size):
+		print("End position is blocked")
 		return PackedVector2Array()
 	
-	return _a_star_pathfind(start_grid, end_grid, agent_size)
+	var path = _a_star_pathfind(start_grid, end_grid, agent_size)
+	print("Found path with ", path.size(), " points")
+	return path
+
+func _find_nearest_valid_position(pos: Vector2, agent_size: PackedVector2Array) -> Vector2:
+	var search_radius = grid_size * 3
+	var best_pos = Vector2.INF
+	var best_distance = INF
+	
+	for grid_pos in grid.keys():
+		var distance = pos.distance_to(grid_pos)
+		if distance <= search_radius and distance < best_distance:
+			if not _is_position_blocked(grid_pos, agent_size):
+				best_pos = grid_pos
+				best_distance = distance
+	
+	return best_pos
 
 func _snap_to_grid(pos: Vector2) -> Vector2:
 	return Vector2(
@@ -141,7 +190,12 @@ func _a_star_pathfind(start: Vector2, goal: Vector2, agent_size: PackedVector2Ar
 	var start_node = PathNode.new(start, 0.0, _heuristic(start, goal))
 	open_set.append(start_node)
 	
-	while not open_set.is_empty():
+	var iterations = 0
+	var max_iterations = 1000
+	
+	while not open_set.is_empty() and iterations < max_iterations:
+		iterations += 1
+		
 		# Find node with lowest f_score
 		var current_idx = 0
 		for i in range(1, open_set.size()):
@@ -152,7 +206,9 @@ func _a_star_pathfind(start: Vector2, goal: Vector2, agent_size: PackedVector2Ar
 		open_set.remove_at(current_idx)
 		
 		if current.position.distance_to(goal) < grid_size * 0.5:
-			return _reconstruct_path(came_from, current.position, start)
+			var path = _reconstruct_path(came_from, current.position, start)
+			print("Path found after ", iterations, " iterations")
+			return path
 		
 		closed_set[current.position] = true
 		
@@ -179,6 +235,7 @@ func _a_star_pathfind(start: Vector2, goal: Vector2, agent_size: PackedVector2Ar
 				existing_node.f_score = tentative_g + existing_node.h_score
 				came_from[neighbor_pos] = current.position
 	
+	print("No path found after ", iterations, " iterations")
 	return PackedVector2Array()
 
 func _get_neighbors(pos: Vector2) -> Array[Vector2]:
@@ -201,7 +258,14 @@ func _heuristic(pos: Vector2, goal: Vector2) -> float:
 	return pos.distance_to(goal)
 
 func _is_position_blocked(pos: Vector2, agent_size: PackedVector2Array) -> bool:
-	# Check if position is blocked by any obstacle
+	# If no agent size specified, just check point collision
+	if agent_size.is_empty():
+		for obstacle in obstacles:
+			if obstacle.is_point_inside(pos):
+				return true
+		return false
+	
+	# Check if agent polygon at this position would intersect with any obstacle
 	for obstacle in obstacles:
 		if _polygons_intersect(agent_size, pos, obstacle.obstacle_polygon, obstacle.global_position):
 			return true
@@ -211,17 +275,42 @@ func _polygons_intersect(poly1: PackedVector2Array, offset1: Vector2, poly2: Pac
 	if poly1.is_empty() or poly2.is_empty():
 		return false
 	
-	# Transform polygons to world space
+	# Transform polygons to world space with buffer
 	var world_poly1: PackedVector2Array = []
 	for p in poly1:
 		world_poly1.append(p + offset1)
 	
 	var world_poly2: PackedVector2Array = []
-	for p in poly2:
+	# Add buffer to obstacle polygon
+	var buffered_poly2 = _expand_polygon(poly2, agent_buffer)
+	for p in buffered_poly2:
 		world_poly2.append(p + offset2)
 	
 	# Separating Axis Theorem
 	return _sat_intersect(world_poly1, world_poly2)
+
+func _expand_polygon(poly: PackedVector2Array, buffer: float) -> PackedVector2Array:
+	if poly.size() < 3 or buffer <= 0:
+		return poly
+	
+	var expanded: PackedVector2Array = []
+	
+	for i in poly.size():
+		var current = poly[i]
+		var prev = poly[(i - 1 + poly.size()) % poly.size()]
+		var next = poly[(i + 1) % poly.size()]
+		
+		# Calculate edge normals
+		var edge1 = (current - prev).normalized()
+		var edge2 = (next - current).normalized()
+		var normal1 = Vector2(-edge1.y, edge1.x)
+		var normal2 = Vector2(-edge2.y, edge2.x)
+		
+		# Average the normals for the vertex offset direction
+		var offset_dir = (normal1 + normal2).normalized()
+		expanded.append(current + offset_dir * buffer)
+	
+	return expanded
 
 func _sat_intersect(poly1: PackedVector2Array, poly2: PackedVector2Array) -> bool:
 	var polygons = [poly1, poly2]
@@ -230,6 +319,9 @@ func _sat_intersect(poly1: PackedVector2Array, poly2: PackedVector2Array) -> boo
 		for i in poly.size():
 			var edge = poly[(i + 1) % poly.size()] - poly[i]
 			var axis = Vector2(-edge.y, edge.x).normalized()
+			
+			if axis.length_squared() < 0.001:  # Skip zero-length axes
+				continue
 			
 			var proj1 = _project_polygon(poly1, axis)
 			var proj2 = _project_polygon(poly2, axis)
@@ -257,7 +349,7 @@ func _reconstruct_path(came_from_dict: Dictionary, current: Vector2, start: Vect
 	var path: PackedVector2Array = []
 	path.append(current)
 	
-	while came_from_dict.has(current):
+	while came_from_dict.has(current) and current != start:
 		current = came_from_dict[current]
 		path.append(current)
 	
@@ -265,7 +357,7 @@ func _reconstruct_path(came_from_dict: Dictionary, current: Vector2, start: Vect
 	return path
 
 func _draw():
-	if not debug_draw or Engine.is_editor_hint():
+	if not debug_draw:
 		return
 	
 	# Draw bounds
@@ -273,9 +365,12 @@ func _draw():
 		draw_colored_polygon(bounds_polygon, Color.BLUE * 0.2)
 		draw_polyline(bounds_polygon + PackedVector2Array([bounds_polygon[0]]), Color.BLUE, 2.0)
 	
-	# Draw grid
+	# Draw grid (only a subset to avoid performance issues)
+	var count = 0
 	for pos in grid.keys():
-		draw_circle(pos, 3.0, Color.GRAY)
+		if count % 4 == 0:  # Only draw every 4th grid point
+			draw_circle(pos, 2.0, Color.GRAY)
+		count += 1
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

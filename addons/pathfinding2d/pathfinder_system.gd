@@ -9,9 +9,9 @@ class_name PathfinderSystem
 	Vector2(-500, 500)
 ])
 
-@export var grid_size: float = 25.0  # Reduced grid size for better pathfinding
+@export var grid_size: float = 25.0
 @export var debug_draw: bool = false
-@export var agent_buffer: float = 5.0  # Buffer distance to avoid touching obstacles
+@export var agent_buffer: float = 5.0
 
 var grid: Dictionary = {}
 var obstacles: Array[PathfinderObstacle] = []
@@ -81,7 +81,7 @@ func _get_bounds_rect() -> Rect2:
 
 func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
 	if polygon.size() < 3:
-		return true  # If no valid bounds, allow all points
+		return true
 	
 	var inside = false
 	var j = polygon.size() - 1
@@ -129,23 +129,24 @@ func unregister_pathfinder(pathfinder: Pathfinder):
 
 func find_path(start: Vector2, end: Vector2, agent_size: PackedVector2Array = PackedVector2Array()) -> PackedVector2Array:
 	print("Finding path from ", start, " to ", end)
-	print("Agent size: ", agent_size.size(), " points")
 	
+	# First check if we can go directly (no obstacles in the way)
+	if _is_line_clear(start, end, agent_size):
+		print("Direct path available")
+		return PackedVector2Array([start, end])
+	
+	# If not, use grid-based pathfinding
 	var start_grid = _snap_to_grid(start)
 	var end_grid = _snap_to_grid(end)
 	
 	print("Grid start: ", start_grid, " Grid end: ", end_grid)
 	
 	if not grid.has(start_grid):
-		print("Start position not in grid")
-		# Try to find nearest valid grid point
 		start_grid = _find_nearest_valid_position(start_grid, agent_size)
 		if start_grid == Vector2.INF:
 			return PackedVector2Array()
 	
 	if not grid.has(end_grid):
-		print("End position not in grid")
-		# Try to find nearest valid grid point
 		end_grid = _find_nearest_valid_position(end_grid, agent_size)
 		if end_grid == Vector2.INF:
 			return PackedVector2Array()
@@ -159,8 +160,51 @@ func find_path(start: Vector2, end: Vector2, agent_size: PackedVector2Array = Pa
 		return PackedVector2Array()
 	
 	var path = _a_star_pathfind(start_grid, end_grid, agent_size)
+	
+	# Simplify the path by removing unnecessary waypoints
+	if path.size() > 2:
+		path = _simplify_path(path, agent_size)
+	
 	print("Found path with ", path.size(), " points")
 	return path
+
+func _is_line_clear(start: Vector2, end: Vector2, agent_size: PackedVector2Array) -> bool:
+	# Sample points along the line and check for collisions
+	var distance = start.distance_to(end)
+	var samples = max(2, int(distance / (grid_size * 0.5)))
+	
+	for i in samples + 1:
+		var t = float(i) / float(samples)
+		var test_pos = start.lerp(end, t)
+		
+		if _is_position_blocked(test_pos, agent_size):
+			return false
+	
+	return true
+
+func _simplify_path(path: PackedVector2Array, agent_size: PackedVector2Array) -> PackedVector2Array:
+	if path.size() <= 2:
+		return path
+	
+	var simplified: PackedVector2Array = []
+	simplified.append(path[0])
+	
+	var current_index = 0
+	
+	while current_index < path.size() - 1:
+		var farthest_visible = current_index + 1
+		
+		# Find the farthest point we can see directly
+		for i in range(current_index + 2, path.size()):
+			if _is_line_clear(path[current_index], path[i], agent_size):
+				farthest_visible = i
+			else:
+				break
+		
+		current_index = farthest_visible
+		simplified.append(path[current_index])
+	
+	return simplified
 
 func _find_nearest_valid_position(pos: Vector2, agent_size: PackedVector2Array) -> Vector2:
 	var search_radius = grid_size * 3
@@ -261,12 +305,16 @@ func _is_position_blocked(pos: Vector2, agent_size: PackedVector2Array) -> bool:
 	# If no agent size specified, just check point collision
 	if agent_size.is_empty():
 		for obstacle in obstacles:
+			if not is_instance_valid(obstacle):
+				continue
 			if obstacle.is_point_inside(pos):
 				return true
 		return false
 	
 	# Check if agent polygon at this position would intersect with any obstacle
 	for obstacle in obstacles:
+		if not is_instance_valid(obstacle):
+			continue
 		if _polygons_intersect(agent_size, pos, obstacle.obstacle_polygon, obstacle.global_position):
 			return true
 	return false
@@ -275,18 +323,18 @@ func _polygons_intersect(poly1: PackedVector2Array, offset1: Vector2, poly2: Pac
 	if poly1.is_empty() or poly2.is_empty():
 		return false
 	
-	# Transform polygons to world space with buffer
+	# Transform polygons to world space
 	var world_poly1: PackedVector2Array = []
 	for p in poly1:
 		world_poly1.append(p + offset1)
 	
+	# Expand obstacle polygon with buffer
+	var expanded_poly2 = _expand_polygon(poly2, agent_buffer)
 	var world_poly2: PackedVector2Array = []
-	# Add buffer to obstacle polygon
-	var buffered_poly2 = _expand_polygon(poly2, agent_buffer)
-	for p in buffered_poly2:
+	for p in expanded_poly2:
 		world_poly2.append(p + offset2)
 	
-	# Separating Axis Theorem
+	# Use Separating Axis Theorem for collision detection
 	return _sat_intersect(world_poly1, world_poly2)
 
 func _expand_polygon(poly: PackedVector2Array, buffer: float) -> PackedVector2Array:
@@ -300,36 +348,58 @@ func _expand_polygon(poly: PackedVector2Array, buffer: float) -> PackedVector2Ar
 		var prev = poly[(i - 1 + poly.size()) % poly.size()]
 		var next = poly[(i + 1) % poly.size()]
 		
-		# Calculate edge normals
+		# Calculate edge vectors
 		var edge1 = (current - prev).normalized()
 		var edge2 = (next - current).normalized()
+		
+		# Calculate outward normals for each edge
 		var normal1 = Vector2(-edge1.y, edge1.x)
 		var normal2 = Vector2(-edge2.y, edge2.x)
 		
-		# Average the normals for the vertex offset direction
-		var offset_dir = (normal1 + normal2).normalized()
-		expanded.append(current + offset_dir * buffer)
+		# Calculate angle bisector (average of normals)
+		var bisector = (normal1 + normal2)
+		if bisector.length_squared() < 0.001:
+			# Handle parallel edges (180-degree turn)
+			bisector = normal1
+		else:
+			bisector = bisector.normalized()
+		
+		# Calculate how much to push out based on the angle
+		var angle_factor = 1.0 / max(0.1, abs(normal1.dot(bisector)))
+		var offset = bisector * buffer * angle_factor
+		
+		expanded.append(current + offset)
 	
 	return expanded
 
 func _sat_intersect(poly1: PackedVector2Array, poly2: PackedVector2Array) -> bool:
-	var polygons = [poly1, poly2]
+	# Get all potential separating axes from both polygons
+	var axes: Array[Vector2] = []
 	
-	for poly in polygons:
-		for i in poly.size():
-			var edge = poly[(i + 1) % poly.size()] - poly[i]
+	# Add axes from poly1
+	for i in poly1.size():
+		var edge = poly1[(i + 1) % poly1.size()] - poly1[i]
+		if edge.length_squared() > 0.001:  # Skip degenerate edges
 			var axis = Vector2(-edge.y, edge.x).normalized()
-			
-			if axis.length_squared() < 0.001:  # Skip zero-length axes
-				continue
-			
-			var proj1 = _project_polygon(poly1, axis)
-			var proj2 = _project_polygon(poly2, axis)
-			
-			if proj1.y < proj2.x or proj2.y < proj1.x:
-				return false
+			axes.append(axis)
 	
-	return true
+	# Add axes from poly2
+	for i in poly2.size():
+		var edge = poly2[(i + 1) % poly2.size()] - poly2[i]
+		if edge.length_squared() > 0.001:  # Skip degenerate edges
+			var axis = Vector2(-edge.y, edge.x).normalized()
+			axes.append(axis)
+	
+	# Test each axis
+	for axis in axes:
+		var proj1 = _project_polygon(poly1, axis)
+		var proj2 = _project_polygon(poly2, axis)
+		
+		# Check for separation on this axis
+		if proj1.y < proj2.x or proj2.y < proj1.x:
+			return false  # Separating axis found, no intersection
+	
+	return true  # No separating axis found, polygons intersect
 
 func _project_polygon(poly: PackedVector2Array, axis: Vector2) -> Vector2:
 	if poly.is_empty():

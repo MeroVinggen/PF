@@ -15,6 +15,7 @@ class_name Pathfinder
 @export var debug_draw: bool = true
 @export var agent_color: Color = Color.GREEN
 @export var path_color: Color = Color.YELLOW
+@export var arrival_distance: float = 10.0  # Distance to consider "arrived" at waypoint
 
 var system: PathfinderSystem
 var current_path: PackedVector2Array = PackedVector2Array()
@@ -94,16 +95,23 @@ func _follow_path(delta):
 	var current_target = current_path[path_index]
 	var distance_to_target = global_position.distance_to(current_target)
 	
-	if distance_to_target < 15.0:  # Increased threshold for better movement
+	# Check if we've reached the current waypoint
+	if distance_to_target < arrival_distance:
 		path_index += 1
 		if path_index >= current_path.size():
 			_on_destination_reached()
 			return
 		current_target = current_path[path_index]
+		distance_to_target = global_position.distance_to(current_target)
 	
 	# Move towards current target
 	var direction = (current_target - global_position).normalized()
 	var movement = direction * movement_speed * delta
+	
+	# Don't overshoot the target
+	if movement.length() > distance_to_target:
+		movement = direction * distance_to_target
+	
 	global_position += movement
 	
 	# Rotate towards movement direction
@@ -189,12 +197,19 @@ func _draw():
 			var color = path_color
 			if i == path_index:
 				color = Color.WHITE  # Highlight current target
+			elif i < path_index:
+				color = Color.GRAY  # Completed waypoints
 			draw_circle(point, 5.0, color)
 	
 	# Draw target position
 	if is_moving and target_position != Vector2.ZERO:
 		var target_local = to_local(target_position)
 		draw_circle(target_local, 8.0, Color.MAGENTA)
+	
+	# Draw arrival distance around current target
+	if is_moving and path_index < current_path.size():
+		var current_target_local = to_local(current_path[path_index])
+		draw_arc(current_target_local, arrival_distance, 0, TAU, 16, Color.CYAN, 1.0)
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []
@@ -204,6 +219,9 @@ func _get_configuration_warnings() -> PackedStringArray:
 	
 	if movement_speed <= 0:
 		warnings.append("Movement speed must be greater than 0")
+	
+	if arrival_distance <= 0:
+		warnings.append("Arrival distance must be greater than 0")
 	
 	return warnings
 

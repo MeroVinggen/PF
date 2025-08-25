@@ -44,10 +44,24 @@ func _ready():
 
 func _initialize_system():
 	_build_grid()
-	_register_obstacles()
-	_register_pathfinders()
+	_find_and_register_obstacles()
+	_find_and_register_pathfinders()
 	_mark_corner_nodes()  # New: identify problematic corner areas
 	print("PathfinderSystem initialized with ", grid.size(), " grid points")
+
+func _find_and_register_obstacles():
+	# Find obstacles in the scene
+	var obstacle_nodes = get_tree().get_nodes_in_group("pathfinder_obstacles")
+	for obstacle in obstacle_nodes:
+		if obstacle is PathfinderObstacle:
+			register_obstacle(obstacle)
+
+func _find_and_register_pathfinders():
+	# Find pathfinders in the scene
+	var pathfinder_nodes = get_tree().get_nodes_in_group("pathfinders")
+	for pathfinder in pathfinder_nodes:
+		if pathfinder is Pathfinder:
+			register_pathfinder(pathfinder)
 
 func _build_grid():
 	grid.clear()
@@ -509,9 +523,6 @@ func _is_position_unsafe(pos: Vector2, agent_size: PackedVector2Array) -> bool:
 			return true
 	
 	return false
-
-# Keep all the existing helper functions (_expand_polygon, _polygons_intersect, etc.)
-# ... [Previous helper functions remain the same] ...
 
 func _expand_polygon(poly: PackedVector2Array, buffer: float) -> PackedVector2Array:
 	if poly.size() < 3 or buffer <= 0:

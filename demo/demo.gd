@@ -164,7 +164,8 @@ func _debug_system_state():
 	# Debug obstacle corner detection
 	if pathfinder_system and pathfinder_system.has_method("_find_obstacle_corners"):
 		print("Obstacle corners:")
-		for i, obstacle in enumerate(pathfinder_system.obstacles):
+		for i in range(pathfinder_system.obstacles.size()):
+			var obstacle = pathfinder_system.obstacles[i]
 			if is_instance_valid(obstacle):
 				var world_poly = obstacle.get_world_polygon()
 				var corners = pathfinder_system._find_obstacle_corners(world_poly)
@@ -197,7 +198,8 @@ func _on_agent_unstuck():
 # Enhanced debug drawing
 func _draw():
 	# Draw test points
-	for i, point in enumerate(test_points):
+	for i in range(test_points.size()):
+		var point = test_points[i]
 		var color = Color.CYAN
 		if i == (current_test_index - 1) % test_points.size():
 			color = Color.YELLOW  # Highlight last target
@@ -236,7 +238,8 @@ func _draw():
 		status_text.append("Next test in: " + str(int(time_to_next)) + "s")
 	
 	# Draw status text
-	for i, text in enumerate(status_text):
+	for i in range(status_text.size()):
+		var text = status_text[i]
 		var pos = status_pos + Vector2(0, i * 20)
 		draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
 	
@@ -250,7 +253,8 @@ func _draw():
 		"1/2/3 - Set speed"
 	]
 	
-	for i, text in enumerate(legend_text):
+	for i in range(legend_text.size()):
+		var text = legend_text[i]
 		var pos = legend_pos + Vector2(0, i * 15)
 		var color = Color.LIGHT_GRAY if i > 0 else Color.WHITE
 		draw_string(ThemeDB.fallback_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, color)

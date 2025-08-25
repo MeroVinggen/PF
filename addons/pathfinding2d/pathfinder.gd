@@ -2,11 +2,12 @@
 extends Node2D
 class_name Pathfinder
 
+# Agent polygon should be centered around origin for proper collision detection
 @export var agent_polygon: PackedVector2Array = PackedVector2Array([
-	Vector2(-10, -10),
-	Vector2(10, -10),
-	Vector2(10, 10),
-	Vector2(-10, 10)
+	Vector2(-5, -5),
+	Vector2(5, -5),
+	Vector2(5, 5),
+	Vector2(-5, 5)
 ])
 
 @export var movement_speed: float = 200.0
@@ -15,7 +16,7 @@ class_name Pathfinder
 @export var debug_draw: bool = true
 @export var agent_color: Color = Color.GREEN
 @export var path_color: Color = Color.YELLOW
-@export var arrival_distance: float = 10.0  # Distance to consider "arrived" at waypoint
+@export var arrival_distance: float = 8.0  # Reduced for better precision
 
 var system: PathfinderSystem
 var current_path: PackedVector2Array = PackedVector2Array()
@@ -104,6 +105,12 @@ func _follow_path(delta):
 		current_target = current_path[path_index]
 		distance_to_target = global_position.distance_to(current_target)
 	
+	# Additional safety check - validate current position isn't blocked
+	if system and system._is_position_blocked(global_position, agent_polygon):
+		print("Agent is in blocked position! Recalculating path...")
+		recalculate_path()
+		return
+	
 	# Move towards current target
 	var direction = (current_target - global_position).normalized()
 	var movement = direction * movement_speed * delta
@@ -112,7 +119,14 @@ func _follow_path(delta):
 	if movement.length() > distance_to_target:
 		movement = direction * distance_to_target
 	
-	global_position += movement
+	# Validate the movement won't put us in a blocked position
+	var new_position = global_position + movement
+	if system and system._is_position_blocked(new_position, agent_polygon):
+		print("Movement would cause collision! Recalculating path...")
+		recalculate_path()
+		return
+	
+	global_position = new_position
 	
 	# Rotate towards movement direction
 	if direction.length() > 0.1:
@@ -139,7 +153,8 @@ func is_path_valid() -> bool:
 		var end = current_path[i + 1]
 		
 		if system._is_position_blocked(start, agent_polygon) or \
-		   system._is_position_blocked(end, agent_polygon):
+		   system._is_position_blocked(end, agent_polygon) or \
+		   not system._is_line_clear(start, end, agent_polygon):
 			return false
 	
 	return true
@@ -152,6 +167,7 @@ func recalculate_path():
 	if current_path.size() > path_index:
 		destination = current_path[-1]  # Use the final destination
 	
+	print("Recalculating path from current position")
 	find_path_to(destination)
 
 func get_agent_bounds() -> Rect2:
@@ -182,7 +198,7 @@ func _draw():
 		draw_polyline(outline, agent_color, 2.0)
 	else:
 		# Fallback to circle if polygon is invalid
-		draw_circle(Vector2.ZERO, 10.0, agent_color)
+		draw_circle(Vector2.ZERO, 8.0, agent_color)
 	
 	# Draw current path
 	if current_path.size() > 1:
@@ -222,6 +238,15 @@ func _get_configuration_warnings() -> PackedStringArray:
 	
 	if arrival_distance <= 0:
 		warnings.append("Arrival distance must be greater than 0")
+	
+	# Check if polygon is properly centered
+	var centroid = Vector2.ZERO
+	for point in agent_polygon:
+		centroid += point
+	centroid /= agent_polygon.size()
+	
+	if centroid.distance_to(Vector2.ZERO) > 2.0:
+		warnings.append("Agent polygon should be centered around origin (0,0) for proper collision detection")
 	
 	return warnings
 

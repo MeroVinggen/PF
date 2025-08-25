@@ -9,9 +9,9 @@ class_name PathfinderSystem
 	Vector2(-500, 500)
 ])
 
-@export var grid_size: float = 25.0
+@export var grid_size: float = 25.0  # Reduced from 50 for better precision
 @export var debug_draw: bool = false
-@export var agent_buffer: float = 5.0
+@export var agent_buffer: float = 8.0  # Increased buffer for safety
 
 var grid: Dictionary = {}
 var obstacles: Array[PathfinderObstacle] = []
@@ -130,8 +130,11 @@ func unregister_pathfinder(pathfinder: Pathfinder):
 func find_path(start: Vector2, end: Vector2, agent_size: PackedVector2Array = PackedVector2Array()) -> PackedVector2Array:
 	print("Finding path from ", start, " to ", end)
 	
+	# Convert agent polygon to be centered around origin
+	var centered_agent = _center_agent_polygon(agent_size)
+	
 	# First check if we can go directly (no obstacles in the way)
-	if _is_line_clear(start, end, agent_size):
+	if _is_line_clear(start, end, centered_agent):
 		print("Direct path available")
 		return PackedVector2Array([start, end])
 	
@@ -142,42 +145,62 @@ func find_path(start: Vector2, end: Vector2, agent_size: PackedVector2Array = Pa
 	print("Grid start: ", start_grid, " Grid end: ", end_grid)
 	
 	if not grid.has(start_grid):
-		start_grid = _find_nearest_valid_position(start_grid, agent_size)
+		start_grid = _find_nearest_valid_position(start_grid, centered_agent)
 		if start_grid == Vector2.INF:
+			print("No valid start position found")
 			return PackedVector2Array()
 	
 	if not grid.has(end_grid):
-		end_grid = _find_nearest_valid_position(end_grid, agent_size)
+		end_grid = _find_nearest_valid_position(end_grid, centered_agent)
 		if end_grid == Vector2.INF:
+			print("No valid end position found")
 			return PackedVector2Array()
 	
-	if _is_position_blocked(start_grid, agent_size):
+	if _is_position_blocked(start_grid, centered_agent):
 		print("Start position is blocked")
 		return PackedVector2Array()
 	
-	if _is_position_blocked(end_grid, agent_size):
+	if _is_position_blocked(end_grid, centered_agent):
 		print("End position is blocked")
 		return PackedVector2Array()
 	
-	var path = _a_star_pathfind(start_grid, end_grid, agent_size)
+	var path = _a_star_pathfind(start_grid, end_grid, centered_agent)
 	
 	# Simplify the path by removing unnecessary waypoints
 	if path.size() > 2:
-		path = _simplify_path(path, agent_size)
+		path = _simplify_path(path, centered_agent)
 	
 	print("Found path with ", path.size(), " points")
 	return path
 
+func _center_agent_polygon(agent_polygon: PackedVector2Array) -> PackedVector2Array:
+	if agent_polygon.is_empty():
+		return agent_polygon
+	
+	# Calculate centroid
+	var centroid = Vector2.ZERO
+	for point in agent_polygon:
+		centroid += point
+	centroid /= agent_polygon.size()
+	
+	# Center the polygon around origin
+	var centered: PackedVector2Array = []
+	for point in agent_polygon:
+		centered.append(point - centroid)
+	
+	return centered
+
 func _is_line_clear(start: Vector2, end: Vector2, agent_size: PackedVector2Array) -> bool:
-	# Sample points along the line and check for collisions
+	# Sample points along the line and check for collisions more thoroughly
 	var distance = start.distance_to(end)
-	var samples = max(2, int(distance / (grid_size * 0.5)))
+	var samples = max(int(distance / (grid_size * 0.25)), 8)  # More samples for better accuracy
 	
 	for i in samples + 1:
 		var t = float(i) / float(samples)
 		var test_pos = start.lerp(end, t)
 		
 		if _is_position_blocked(test_pos, agent_size):
+			print("Line blocked at position: ", test_pos)
 			return false
 	
 	return true
@@ -207,7 +230,7 @@ func _simplify_path(path: PackedVector2Array, agent_size: PackedVector2Array) ->
 	return simplified
 
 func _find_nearest_valid_position(pos: Vector2, agent_size: PackedVector2Array) -> Vector2:
-	var search_radius = grid_size * 3
+	var search_radius = grid_size * 5
 	var best_pos = Vector2.INF
 	var best_distance = INF
 	
@@ -235,7 +258,7 @@ func _a_star_pathfind(start: Vector2, goal: Vector2, agent_size: PackedVector2Ar
 	open_set.append(start_node)
 	
 	var iterations = 0
-	var max_iterations = 1000
+	var max_iterations = 2000  # Increased for better pathfinding
 	
 	while not open_set.is_empty() and iterations < max_iterations:
 		iterations += 1
@@ -260,6 +283,10 @@ func _a_star_pathfind(start: Vector2, goal: Vector2, agent_size: PackedVector2Ar
 		var neighbors = _get_neighbors(current.position)
 		for neighbor_pos in neighbors:
 			if closed_set.has(neighbor_pos) or _is_position_blocked(neighbor_pos, agent_size):
+				continue
+			
+			# Add extra check for transitions - ensure we can move between positions
+			if not _is_line_clear(current.position, neighbor_pos, agent_size):
 				continue
 			
 			var tentative_g = current.g_score + current.position.distance_to(neighbor_pos)
@@ -315,8 +342,19 @@ func _is_position_blocked(pos: Vector2, agent_size: PackedVector2Array) -> bool:
 	for obstacle in obstacles:
 		if not is_instance_valid(obstacle):
 			continue
-		if _polygons_intersect(agent_size, pos, obstacle.obstacle_polygon, obstacle.global_position):
+		
+		# Get the obstacle's world polygon
+		var obstacle_world_poly = obstacle.get_world_polygon()
+		
+		# Expand obstacle by agent buffer for safety
+		var expanded_obstacle = _expand_polygon(obstacle.obstacle_polygon, agent_buffer)
+		var world_expanded: PackedVector2Array = []
+		for p in expanded_obstacle:
+			world_expanded.append(p + obstacle.global_position)
+		
+		if _polygons_intersect(agent_size, pos, world_expanded, Vector2.ZERO):
 			return true
+	
 	return false
 
 func _polygons_intersect(poly1: PackedVector2Array, offset1: Vector2, poly2: PackedVector2Array, offset2: Vector2) -> bool:
@@ -328,10 +366,8 @@ func _polygons_intersect(poly1: PackedVector2Array, offset1: Vector2, poly2: Pac
 	for p in poly1:
 		world_poly1.append(p + offset1)
 	
-	# Expand obstacle polygon with buffer
-	var expanded_poly2 = _expand_polygon(poly2, agent_buffer)
 	var world_poly2: PackedVector2Array = []
-	for p in expanded_poly2:
+	for p in poly2:
 		world_poly2.append(p + offset2)
 	
 	# Use Separating Axis Theorem for collision detection
@@ -438,8 +474,12 @@ func _draw():
 	# Draw grid (only a subset to avoid performance issues)
 	var count = 0
 	for pos in grid.keys():
-		if count % 4 == 0:  # Only draw every 4th grid point
-			draw_circle(pos, 2.0, Color.GRAY)
+		if count % 8 == 0:  # Only draw every 8th grid point
+			var color = Color.GRAY
+			# Color blocked positions red
+			if _is_position_blocked(pos, PackedVector2Array()):
+				color = Color.RED
+			draw_circle(pos, 2.0, color)
 		count += 1
 
 func _get_configuration_warnings() -> PackedStringArray:

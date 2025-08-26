@@ -83,17 +83,20 @@ func draw_overlay(overlay: Control):
 	
 	_update_if_dirty()
 	
-	if _screen_cache.screen_polygon.is_empty():
+	if _polygon_data.vertices.is_empty():
 		return
 	
-	# Draw polygon fill
-	overlay.draw_colored_polygon(_screen_cache.screen_polygon, POLYGON_COLOR)
+	# FIXED: Draw in world/canvas space, not screen space like the original plugin
+	# Transform polygon to screen coordinates for drawing
+	var screen_polygon = _transforms.to_screen * _polygon_data.vertices
+	overlay.draw_colored_polygon(screen_polygon, POLYGON_COLOR)
 	
-	# Draw vertices
-	for i in range(_screen_cache.vertex_positions.size()):
-		_draw_vertex(overlay, _screen_cache.vertex_positions[i], i)
+	# Draw vertices in screen space but maintain world positioning
+	for i in range(_polygon_data.vertices.size()):
+		var screen_pos = _transforms.to_screen * _polygon_data.vertices[i]
+		_draw_vertex(overlay, screen_pos, i)
 	
-	# Draw ghost vertex for adding
+	# Draw ghost vertex for adding at cursor position
 	if _interaction_cache.can_add_at != -1:
 		_draw_ghost_vertex(overlay, _interaction_cache.cursor_pos)
 
@@ -151,9 +154,9 @@ func _update_if_dirty():
 func _handle_mouse_motion(event: InputEventMouseMotion) -> bool:
 	_interaction_cache.cursor_pos = event.position
 	
-	# Handle dragging
+	# FIXED: Handle dragging - using Transform2D multiplication instead of function call
 	if _interaction_cache.is_dragging:
-		_drag_vertex(_transforms.to_local(event.position))
+		_drag_vertex(_transforms.to_local * event.position)
 		return true
 	
 	# Update hover states
@@ -199,7 +202,8 @@ func _end_drag():
 	if not _interaction_cache.is_dragging:
 		return
 	
-	var final_pos = _transforms.to_local(_interaction_cache.cursor_pos).round()
+	# FIXED: Using Transform2D multiplication with parentheses for .round()
+	var final_pos = (_transforms.to_local * _interaction_cache.cursor_pos).round()
 	if final_pos != _interaction_cache.drag_start_pos:
 		var undo = _plugin.get_undo_redo()
 		undo.create_action("Drag vertex")
@@ -215,7 +219,8 @@ func _drag_vertex(position: Vector2):
 	_do_update_vertex(_interaction_cache.active_vertex_index, position.round())
 
 func _add_vertex():
-	var position = _transforms.to_local(_interaction_cache.cursor_pos)
+	# FIXED: Using Transform2D multiplication instead of function call
+	var position = _transforms.to_local * _interaction_cache.cursor_pos
 	var index = _interaction_cache.can_add_at
 	
 	var undo = _plugin.get_undo_redo()
@@ -257,13 +262,17 @@ func _do_update_vertex(index: int, vertex: Vector2):
 	_mark_geometry_dirty()
 
 func _draw_vertex(overlay: Control, position: Vector2, index: int):
+	# Draw vertex circle at screen position (transformed from world space)
 	overlay.draw_circle(position, VERTEX_RADIUS, VERTEX_COLOR)
 	if index == _interaction_cache.active_vertex_index:
+		# Draw active vertex highlight
 		overlay.draw_circle(position, VERTEX_RADIUS - 1.0, VERTEX_ACTIVE_COLOR)
+		# Draw vertex index label
 		overlay.draw_string(overlay.get_theme_font("font"), 
 			position + Vector2(-16.0, -16.0), str(index), HORIZONTAL_ALIGNMENT_LEFT, 32.0)
 
 func _draw_ghost_vertex(overlay: Control, position: Vector2):
+	# Draw ghost vertex at cursor position (already in screen space)
 	overlay.draw_circle(position, VERTEX_RADIUS, VERTEX_NEW_COLOR)
 
 func _mark_all_dirty():

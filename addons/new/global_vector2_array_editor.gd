@@ -45,8 +45,13 @@ func _enter_tree():
 
 func _exit_tree():
 	print("Vector2Array plugin exiting tree")
-	remove_inspector_plugin(_inspector_plugin)
+	# Clear any active editing before removing inspector plugin
 	_clear_current()
+	if _inspector_plugin:
+		# Notify all property editors that plugin is being removed
+		_inspector_plugin._cleanup_all_editors()
+		remove_inspector_plugin(_inspector_plugin)
+		_inspector_plugin = null
 
 func set_current_vector2array(object: Object, property: String):
 	print("Setting current vector2array: ", object, " property: ", property)
@@ -70,7 +75,7 @@ func set_current_vector2array(object: Object, property: String):
 
 func _init_polygon_if_empty():
 	if _current_polygon.is_empty() and _current_object and _current_property:
-		_current_polygon = PackedVector2Array([Vector2(32.0, 0.0), Vector2(-32.0, 32.0), Vector2(-32.0, -32.0)])
+		_current_polygon = PackedVector2Array([Vector2(32.0, 0.0), Vector2(-32.0, 32.0), Vector2(-32.0, -32.0), Vector2(32.0, -32.0)])
 		_current_object.set(_current_property, _current_polygon)
 
 func _clear_current():
@@ -81,6 +86,8 @@ func _clear_current():
 	_is_dragging = false
 	_drag_started = false
 	_drag_ended = false
+	_drag_from = Vector2.ZERO
+	_drag_to = Vector2.ZERO
 	_can_add_at = -1
 	update_overlays()
 
@@ -98,6 +105,12 @@ func _edit(object):
 func _forward_canvas_draw_over_viewport(overlay: Control):
 	if not _current_object or not _current_property or not _current_object is Node2D:
 		return
+	
+	# Check if object is still valid
+	if not is_instance_valid(_current_object):
+		_clear_current()
+		return
+		
 	_sync_polygon_from_object()
 	_update_transforms()
 	_draw_polygon(overlay)
@@ -105,6 +118,12 @@ func _forward_canvas_draw_over_viewport(overlay: Control):
 func _forward_canvas_gui_input(event):
 	if not _current_object or not _current_property or not _current_object is Node2D:
 		return false
+		
+	# Check if object is still valid
+	if not is_instance_valid(_current_object):
+		_clear_current()
+		return false
+		
 	_sync_polygon_from_object()
 	var handled := _handle_left_click(event)\
 		or _handle_right_click(event)\
@@ -116,14 +135,17 @@ func _forward_canvas_gui_input(event):
 func _handle_left_click(event) -> bool:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.is_pressed():
-			if _can_add_at != -1:
-				_add_vertex()
+			# Priority: if clicking on a vertex, start dragging it
 			if _active_index != -1:
 				_drag_started = true
 				_is_dragging = true
-		if event.is_released() and _active_index != -1:
-			_drag_ended = true
-			_is_dragging = false
+			# Only add vertex if NOT clicking on an existing vertex
+			elif _can_add_at != -1:
+				_add_vertex()
+		if event.is_released():
+			if _is_dragging and _active_index != -1:
+				_drag_ended = true
+				_is_dragging = false
 		return true
 	return false
 
@@ -131,8 +153,10 @@ func _handle_right_click(event) -> bool:
 	if event is InputEventMouseButton\
 			and event.button_index == MOUSE_BUTTON_RIGHT\
 			and event.is_pressed():
-		_remove_vertex()
-		return true
+		# Make sure we have an active vertex to remove
+		if _active_index != -1:
+			_remove_vertex()
+		return _active_index != -1  # Only return true if we actually had a vertex to work with
 	return false
 
 func _handle_mouse_move(event) -> bool:
@@ -146,8 +170,10 @@ func _handle_mouse_move(event) -> bool:
 			_drag_vertex(_transform_to_base * event.position)
 			return true
 		else:
+			# Update active vertex and potential add position
 			_active_index = _get_active_vertex()
-			_can_add_at = _get_active_side()
+			# Only check for add position if not hovering over a vertex
+			_can_add_at = _get_active_side() if _active_index == -1 else -1
 			# Only update overlays if something actually changed
 			return _active_index != old_active or _can_add_at != old_can_add
 	return false
@@ -186,7 +212,6 @@ func _add_vertex():
 	undo.add_undo_method(self, "_do_remove_vertex", _can_add_at)
 	undo.commit_action()
 	_can_add_at = -1
-	_drag_to = position
 
 func _do_add_vertex(index: int, vertex: Vector2):
 	_current_polygon.insert(index, vertex)
@@ -194,13 +219,19 @@ func _do_add_vertex(index: int, vertex: Vector2):
 	_active_index = index
 
 func _remove_vertex():
-	if _active_index == -1 or _current_polygon.size() < 4:
+	# Don't allow removal if no vertex is active or if we'd have less than 3 vertices
+	if _active_index == -1:
 		return
+	if _current_polygon.size() <= 3:
+		return
+		
 	var vertex_backup = _current_polygon[_active_index]
+	var index_backup = _active_index
+	
 	var undo := get_undo_redo()
 	undo.create_action("Remove vertex")
-	undo.add_do_method(self, "_do_remove_vertex", _active_index)
-	undo.add_undo_method(self, "_do_add_vertex", _active_index, vertex_backup)
+	undo.add_do_method(self, "_do_remove_vertex", index_backup)
+	undo.add_undo_method(self, "_do_add_vertex", index_backup, vertex_backup)
 	undo.commit_action()
 
 func _do_remove_vertex(index: int):
@@ -211,10 +242,13 @@ func _do_remove_vertex(index: int):
 func _drag_vertex(position: Vector2):
 	if _active_index == -1:
 		return
-	_drag_to = _drag_to if _drag_ended else position.round()
+	
 	if _drag_started:
 		_drag_from = _current_polygon[_active_index]
 		_drag_started = false
+	
+	_drag_to = position.round()
+	
 	if _drag_ended:
 		if _drag_to != _drag_from:
 			var undo := get_undo_redo()
@@ -223,34 +257,39 @@ func _drag_vertex(position: Vector2):
 			undo.add_undo_method(self, "_do_update_vertex", _active_index, _drag_from)
 			undo.commit_action()
 		_drag_ended = false
-	_do_update_vertex(_active_index, _drag_to)
+	else:
+		# Only update position while dragging, not when drag ends
+		_do_update_vertex(_active_index, _drag_to)
 
 func _do_update_vertex(index: int, vertex: Vector2):
 	_current_polygon[index] = vertex
 	_current_object.set(_current_property, _current_polygon)
 
 func _sync_polygon_from_object():
-	if _current_object and _current_property:
-		_current_polygon = _current_object.get(_current_property)
+	if _current_object and _current_property and is_instance_valid(_current_object):
+		var new_polygon = _current_object.get(_current_property)
+		# If polygon changed externally, update our copy and reset active index
+		if new_polygon != _current_polygon:
+			_current_polygon = new_polygon
+			_active_index = -1
 
 func _update_transforms():
 	var node: Node2D = _current_object as Node2D
 	if not node:
 		return
 	
-	# Get the proper canvas transform that includes zoom and pan
-	var canvas_transform = node.get_canvas_transform()
-	var global_transform = node.global_transform
-	
-	# Combine transforms: local polygon -> global -> screen
-	_transform_to_view = canvas_transform * global_transform
+	# Use the same transform calculation as the "old" plugin
+	var transform_viewport := node.get_viewport_transform()
+	var transform_canvas := node.get_canvas_transform()
+	var transform_local := node.transform
+	_transform_to_view = transform_viewport * transform_canvas * transform_local
 	_transform_to_base = _transform_to_view.affine_inverse()
 
 func _draw_polygon(overlay: Control):
 	if _current_polygon.is_empty():
 		return
 	
-	# Transform polygon to screen coordinates
+	# Transform polygon to screen coordinates using the corrected transform
 	var screen_polygon = _transform_to_view * _current_polygon
 	overlay.draw_colored_polygon(screen_polygon, POLYGON_COLOR)
 	
@@ -275,6 +314,7 @@ func _draw_ghost_vertex(overlay: Control, position: Vector2):
 # Inspector plugin to detect PackedVector2Array selection
 class Vector2ArrayInspectorPlugin extends EditorInspectorPlugin:
 	var editor_plugin: EditorPlugin
+	var property_editors: Array[Vector2ArrayPropertyEditor] = []
 	
 	func _can_handle(object):
 		return true
@@ -284,9 +324,21 @@ class Vector2ArrayInspectorPlugin extends EditorInspectorPlugin:
 			print("Found PackedVector2Array property: ", name)
 			var property_editor = Vector2ArrayPropertyEditor.new()
 			property_editor.setup(editor_plugin, object, name)
+			property_editors.append(property_editor)
+			# Connect to editor's tree_exiting signal to remove it from our list
+			property_editor.tree_exiting.connect(_on_property_editor_removed.bind(property_editor))
 			add_custom_control(property_editor)  # Add as custom control instead of replacing
 			return false  # Don't replace the original property editor
 		return false
+	
+	func _on_property_editor_removed(editor: Vector2ArrayPropertyEditor):
+		property_editors.erase(editor)
+	
+	func _cleanup_all_editors():
+		for editor in property_editors:
+			if is_instance_valid(editor):
+				editor._cleanup_plugin_reference()
+		property_editors.clear()
 
 # Property editor for PackedVector2Array
 class Vector2ArrayPropertyEditor extends EditorProperty:
@@ -312,6 +364,11 @@ class Vector2ArrayPropertyEditor extends EditorProperty:
 		
 		_update_button_state()
 	
+	func _cleanup_plugin_reference():
+		if is_editing:
+			_stop_editing_without_plugin_call()
+		editor_plugin = null
+	
 	func _on_edit_pressed():
 		if is_editing:
 			_stop_editing()
@@ -319,6 +376,9 @@ class Vector2ArrayPropertyEditor extends EditorProperty:
 			_start_editing()
 	
 	func _start_editing():
+		if not is_instance_valid(editor_plugin):
+			return
+			
 		is_editing = true
 		editor_plugin.set_current_vector2array(target_object, property_name)
 		edit_button.text = "Stop Editing"
@@ -326,10 +386,20 @@ class Vector2ArrayPropertyEditor extends EditorProperty:
 		print("Started editing ", property_name, " on ", target_object.name, " with ", target_object.get(property_name).size(), " vertices")
 	
 	func _stop_editing():
+		if not is_instance_valid(editor_plugin):
+			_stop_editing_without_plugin_call()
+			return
+			
 		is_editing = false
 		editor_plugin.set_current_vector2array(null, "")
 		edit_button.text = "Edit in 2D View"
 		edit_button.modulate = Color.WHITE
+	
+	func _stop_editing_without_plugin_call():
+		is_editing = false
+		if is_instance_valid(edit_button):
+			edit_button.text = "Edit in 2D View"
+			edit_button.modulate = Color.WHITE
 	
 	func _update_button_state():
 		if target_object and target_object is Node2D:

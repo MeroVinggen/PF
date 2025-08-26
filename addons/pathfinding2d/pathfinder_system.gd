@@ -10,7 +10,6 @@ class_name PathfinderSystem
 ])
 
 @export var grid_size: float = 25.0
-@export var debug_draw: bool = false
 @export var agent_buffer: float = 12.0  # Increased buffer for better corner clearance
 @export var corner_buffer: float = 8.0  # Additional buffer specifically for corners
 @export var max_corner_angle: float = 120.0  # Maximum angle for corner detection (degrees)
@@ -616,41 +615,6 @@ func _reconstruct_path(came_from_dict: Dictionary, current: Vector2, start: Vect
 	
 	path.reverse()
 	return path
-
-func _draw():
-	if not debug_draw:
-		return
-	
-	# Draw bounds
-	if bounds_polygon.size() >= 3:
-		draw_colored_polygon(bounds_polygon, Color.BLUE * 0.2)
-		draw_polyline(bounds_polygon + PackedVector2Array([bounds_polygon[0]]), Color.BLUE, 2.0)
-	
-	# Draw grid with corner highlighting
-	var count = 0
-	for pos in grid.keys():
-		if count % 4 == 0:
-			var color = Color.GRAY
-			var size = 2.0
-			
-			if _is_position_unsafe(pos, PackedVector2Array()):
-				color = Color.RED
-			elif _is_near_corner(pos, PackedVector2Array()):
-				color = Color.ORANGE
-				size = 3.0
-			
-			draw_circle(pos, size, color)
-		count += 1
-	
-	# Draw obstacle corners
-	for obstacle in obstacles:
-		if not is_instance_valid(obstacle):
-			continue
-		var world_poly = obstacle.get_world_polygon()
-		var corners = _find_obstacle_corners(world_poly)
-		for corner in corners:
-			draw_circle(corner, corner_buffer, Color.YELLOW * 0.3)
-			draw_arc(corner, corner_buffer, 0, TAU, 16, Color.YELLOW, 2.0)
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

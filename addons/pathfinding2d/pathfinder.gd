@@ -2,13 +2,7 @@
 extends Node2D
 class_name Pathfinder
 
-@export var agent_polygon: PackedVector2Array = PackedVector2Array([
-	Vector2(-5, -5),
-	Vector2(5, -5),
-	Vector2(5, 5),
-	Vector2(-5, 5)
-])
-
+@export var agent_radius: float = 10.0
 @export var movement_speed: float = 200.0
 @export var rotation_speed: float = 5.0
 @export var auto_move: bool = true
@@ -18,10 +12,10 @@ class_name Pathfinder
 @export var arrival_distance: float = 8.0
 
 # Stuck prevention settings
-@export var stuck_threshold: float = 2.0  # Distance moved to not be considered stuck
-@export var stuck_time_threshold: float = 2.0  # Seconds before considering stuck
-@export var unstuck_force: float = 50.0  # Force applied when trying to get unstuck
-@export var corner_avoidance_distance: float = 15.0  # Distance to start avoiding corners
+@export var stuck_threshold: float = 2.0
+@export var stuck_time_threshold: float = 2.0
+@export var unstuck_force: float = 50.0
+@export var corner_avoidance_distance: float = 20.0
 
 var system: PathfinderSystem
 var current_path: PackedVector2Array = PackedVector2Array()
@@ -62,6 +56,11 @@ func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)
 
+# fix this
+func _physics_process(delta: float) -> void:
+	queue_redraw()
+
+	
 func _process(delta):
 	if Engine.is_editor_hint() or not auto_move or not is_moving:
 		return
@@ -71,7 +70,6 @@ func _process(delta):
 
 func _update_stuck_detection(delta):
 	"""Monitor for stuck situations and handle recovery"""
-	# Record position history
 	last_positions.append(global_position)
 	if last_positions.size() > 10:
 		last_positions.pop_front()
@@ -79,7 +77,6 @@ func _update_stuck_detection(delta):
 	if last_positions.size() < 5:
 		return
 	
-	# Check if we're moving enough
 	var recent_movement = last_positions[-1].distance_to(last_positions[0])
 	
 	if recent_movement < stuck_threshold and not is_unsticking:
@@ -87,7 +84,6 @@ func _update_stuck_detection(delta):
 		if stuck_timer >= stuck_time_threshold:
 			_handle_stuck_situation()
 	else:
-		# Reset stuck detection if we're moving well
 		if stuck_timer > 0:
 			stuck_timer = 0.0
 			if is_unsticking:
@@ -101,7 +97,6 @@ func _handle_stuck_situation():
 	agent_stuck.emit()
 	is_unsticking = true
 	
-	# Try different unstuck strategies
 	if not _try_corner_avoidance():
 		if not _try_path_recalculation():
 			_try_emergency_movement()
@@ -114,7 +109,6 @@ func _try_corner_avoidance() -> bool:
 	var avoidance_force = Vector2.ZERO
 	var found_corner = false
 	
-	# Check for nearby obstacle corners
 	for obstacle in system.obstacles:
 		if not is_instance_valid(obstacle):
 			continue
@@ -126,7 +120,6 @@ func _try_corner_avoidance() -> bool:
 			var distance = global_position.distance_to(corner)
 			if distance < corner_avoidance_distance:
 				found_corner = true
-				# Calculate repulsion force away from corner
 				var repulsion = (global_position - corner).normalized()
 				var strength = (corner_avoidance_distance - distance) / corner_avoidance_distance
 				avoidance_force += repulsion * strength * unstuck_force
@@ -147,7 +140,6 @@ func _try_path_recalculation() -> bool:
 	last_recalc_time = current_time
 	print("Attempting path recalculation...")
 	
-	# Try to find a new path from current position
 	var original_target = target_position
 	if current_path.size() > path_index:
 		original_target = current_path[-1]
@@ -164,7 +156,6 @@ func _try_emergency_movement():
 	"""Last resort: try random movement directions"""
 	print("Using emergency movement to get unstuck")
 	
-	# Try different directions to find one that's not blocked
 	var directions = [
 		Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT,
 		Vector2.UP + Vector2.LEFT, Vector2.UP + Vector2.RIGHT,
@@ -173,17 +164,16 @@ func _try_emergency_movement():
 	
 	for direction in directions:
 		var test_pos = global_position + direction * unstuck_force
-		if system and not system._is_position_unsafe(test_pos, agent_polygon):
+		if system and not system._is_circle_position_unsafe(test_pos, agent_radius):
 			unstuck_direction = direction
 			print("Found emergency direction: ", direction)
 			return
 	
-	# If all else fails, try opposite of last movement
 	if last_positions.size() >= 2:
 		var last_movement = last_positions[-1] - last_positions[-2]
 		unstuck_direction = -last_movement.normalized()
 	else:
-		unstuck_direction = Vector2.UP  # Default direction
+		unstuck_direction = Vector2.UP
 
 func find_path_to(destination: Vector2) -> bool:
 	if not system:
@@ -191,7 +181,7 @@ func find_path_to(destination: Vector2) -> bool:
 		return false
 	
 	print("Pathfinder requesting path to: ", destination)
-	var path = system.find_path(global_position, destination, agent_polygon)
+	var path = system.find_path_for_circle(global_position, destination, agent_radius)
 	
 	if path.is_empty():
 		print("Pathfinder: No path found")
@@ -281,12 +271,10 @@ func _apply_unstuck_movement(delta):
 	var movement = unstuck_direction * unstuck_force * delta
 	var new_position = global_position + movement
 	
-	# Check if this movement is safe
-	if system and not system._is_position_unsafe(new_position, agent_polygon):
+	if system and not system._is_circle_position_unsafe(new_position, agent_radius):
 		global_position = new_position
 		print("Applied unstuck movement")
 	else:
-		# Try a different direction
 		unstuck_direction = unstuck_direction.rotated(PI / 4)
 		print("Rotated unstuck direction")
 
@@ -299,34 +287,31 @@ func _will_movement_cause_collision(target: Vector2, delta: float) -> bool:
 	var movement = direction * movement_speed * delta
 	var future_position = global_position + movement
 	
-	return system._is_position_unsafe(future_position, agent_polygon)
+	return system._is_circle_position_unsafe(future_position, agent_radius)
 
 func _handle_collision_avoidance(target: Vector2, delta: float):
 	"""Handle collision avoidance when direct movement is blocked"""
-	# Try sliding along obstacles
 	var direction_to_target = (target - global_position).normalized()
 	var perpendicular_dirs = [
-		Vector2(-direction_to_target.y, direction_to_target.x),  # Perpendicular right
-		Vector2(direction_to_target.y, -direction_to_target.x)   # Perpendicular left
+		Vector2(-direction_to_target.y, direction_to_target.x),
+		Vector2(direction_to_target.y, -direction_to_target.x)
 	]
 	
 	for perp_dir in perpendicular_dirs:
 		var slide_movement = perp_dir * movement_speed * delta * 0.7
 		var test_position = global_position + slide_movement
 		
-		if system and not system._is_position_unsafe(test_position, agent_polygon):
+		if system and not system._is_circle_position_unsafe(test_position, agent_radius):
 			global_position = test_position
 			print("Applied collision avoidance sliding")
 			return
 	
-	# If sliding doesn't work, try smaller movement towards target
 	var reduced_movement = direction_to_target * movement_speed * delta * 0.3
 	var test_position = global_position + reduced_movement
 	
-	if system and not system._is_position_unsafe(test_position, agent_polygon):
+	if system and not system._is_circle_position_unsafe(test_position, agent_radius):
 		global_position = test_position
 	else:
-		# Force recalculation if we really can't move
 		_handle_stuck_situation()
 
 func _calculate_corner_avoidance_force() -> Vector2:
@@ -368,14 +353,13 @@ func is_path_valid() -> bool:
 	if not system or current_path.is_empty():
 		return false
 	
-	# Check if current path is still valid
 	for i in range(path_index, current_path.size() - 1):
 		var start = current_path[i]
 		var end = current_path[i + 1]
 		
-		if system._is_position_unsafe(start, agent_polygon) or \
-		   system._is_position_unsafe(end, agent_polygon) or \
-		   not system._is_safe_direct_path(start, end, agent_polygon):
+		if system._is_circle_position_unsafe(start, agent_radius) or \
+		   system._is_circle_position_unsafe(end, agent_radius) or \
+		   not system._is_safe_circle_path(start, end, agent_radius):
 			return false
 	
 	return true
@@ -391,43 +375,19 @@ func recalculate_path():
 	print("Recalculating path from current position")
 	find_path_to(destination)
 
-func get_agent_bounds() -> Rect2:
-	if agent_polygon.is_empty():
-		return Rect2()
-	
-	var min_x = agent_polygon[0].x
-	var max_x = agent_polygon[0].x
-	var min_y = agent_polygon[0].y
-	var max_y = agent_polygon[0].y
-	
-	for point in agent_polygon:
-		min_x = min(min_x, point.x)
-		max_x = max(max_x, point.x)
-		min_y = min(min_y, point.y)
-		max_y = max(max_y, point.y)
-	
-	return Rect2(min_x, min_y, max_x - min_x, max_y - min_y)
-
-func _draw():
+func _draw() -> void:
 	if not debug_draw:
 		return
 	
-	# Draw agent polygon
-	if agent_polygon.size() >= 3:
-		var color = agent_color
-		if is_unsticking:
-			color = Color.ORANGE  # Show different color when unsticking
-		elif stuck_timer > stuck_time_threshold * 0.7:
-			color = Color.YELLOW  # Warning color when approaching stuck threshold
-		
-		draw_colored_polygon(agent_polygon, color * 0.7)
-		var outline = agent_polygon + PackedVector2Array([agent_polygon[0]])
-		draw_polyline(outline, color, 2.0)
-	else:
-		var color = agent_color
-		if is_unsticking:
-			color = Color.ORANGE
-		draw_circle(Vector2.ZERO, 8.0, color)
+	# Draw agent circle
+	var color = agent_color
+	if is_unsticking:
+		color = Color.ORANGE
+	elif stuck_timer > stuck_time_threshold * 0.7:
+		color = Color.YELLOW
+	
+	draw_circle(Vector2.ZERO, agent_radius, color * 0.7)
+	draw_arc(Vector2.ZERO, agent_radius, 0, TAU, 32, color, 2.0)
 	
 	# Draw current path
 	if current_path.size() > 1:
@@ -439,12 +399,12 @@ func _draw():
 		# Draw waypoints
 		for i in range(current_path.size()):
 			var point = to_local(current_path[i])
-			var color = path_color
+			var color_waypoint = path_color
 			if i == path_index:
-				color = Color.WHITE
+				color_waypoint = Color.WHITE
 			elif i < path_index:
-				color = Color.GRAY
-			draw_circle(point, 5.0, color)
+				color_waypoint = Color.GRAY
+			draw_circle(point, 5.0, color_waypoint)
 	
 	# Draw target position
 	if is_moving and target_position != Vector2.ZERO:
@@ -459,29 +419,26 @@ func _draw():
 	if is_unsticking and unstuck_direction.length() > 0.1:
 		var arrow_end = unstuck_direction * 20
 		draw_line(Vector2.ZERO, arrow_end, Color.RED, 3.0)
-		# Arrow head
 		var arrow_size = 5.0
 		var arrow_angle = 0.5
 		draw_line(arrow_end, arrow_end - unstuck_direction.rotated(arrow_angle) * arrow_size, Color.RED, 2.0)
 		draw_line(arrow_end, arrow_end - unstuck_direction.rotated(-arrow_angle) * arrow_size, Color.RED, 2.0)
 	
-	# Draw stuck detection info
-	if stuck_timer > 0:
-		var progress = stuck_timer / stuck_time_threshold
-		var bar_width = 30.0
-		var bar_height = 4.0
-		var bar_pos = Vector2(-bar_width * 0.5, -20)
-		
-		# Background bar
-		draw_rect(Rect2(bar_pos, Vector2(bar_width, bar_height)), Color.BLACK)
-		# Progress bar
-		draw_rect(Rect2(bar_pos, Vector2(bar_width * progress, bar_height)), Color.RED)
+	# Draw stuck detection progress bar
+	#if stuck_timer > 0:
+		#var progress = stuck_timer / stuck_time_threshold
+		#var bar_width = 30.0
+		#var bar_height = 4.0
+		#var bar_pos = Vector2(-bar_width * 0.5, -agent_radius - 10)
+		#
+		#draw_rect(Rect2(bar_pos, Vector2(bar_width, bar_height)), Color.BLACK)
+		#draw_rect(Rect2(bar_pos, Vector2(bar_width * progress, bar_height)), Color.RED)
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []
 	
-	if agent_polygon.size() < 3:
-		warnings.append("Agent polygon needs at least 3 points")
+	if agent_radius <= 0:
+		warnings.append("Agent radius must be greater than 0")
 	
 	if movement_speed <= 0:
 		warnings.append("Movement speed must be greater than 0")
@@ -492,18 +449,9 @@ func _get_configuration_warnings() -> PackedStringArray:
 	if stuck_time_threshold <= 0:
 		warnings.append("Stuck time threshold must be greater than 0")
 	
-	# Check if polygon is properly centered
-	var centroid = Vector2.ZERO
-	for point in agent_polygon:
-		centroid += point
-	centroid /= agent_polygon.size()
-	
-	if centroid.distance_to(Vector2.ZERO) > 2.0:
-		warnings.append("Agent polygon should be centered around origin (0,0)")
-	
 	return warnings
 
-# Helper functions for external use
+# Helper functions
 func get_distance_to_target() -> float:
 	if current_path.is_empty() or path_index >= current_path.size():
 		return 0.0

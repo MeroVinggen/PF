@@ -31,19 +31,68 @@ func cleanup():
 
 func _create_ui():
 	_edit_button = Button.new()
-	_edit_button.text = "Edit in 2D View"
 	_edit_button.pressed.connect(_on_edit_pressed)
 	add_child(_edit_button)
+	_update_button_text()
+
+func _update_button_text():
+	if not is_instance_valid(_target_object):
+		return
+	
+	var current_array: PackedVector2Array = _target_object.get(_property_name)
+	
+	if current_array.size() < 3:
+		_edit_button.text = "Add Default Points"
+	elif _is_editing:
+		_edit_button.text = "Stop Editing"
+	else:
+		_edit_button.text = "Edit in 2D View"
 
 func _on_edit_pressed():
-	if _is_editing:
+	if not is_instance_valid(_target_object):
+		return
+	
+	var current_array: PackedVector2Array = _target_object.get(_property_name)
+	
+	if current_array.size() < 3:
+		_add_default_points()
+	elif _is_editing:
 		_stop_editing()
 	else:
 		_start_editing()
 
+func _add_default_points():
+	if not is_instance_valid(_polygon_editor):
+		return
+	
+	# Create default triangle
+	var default_points = PackedVector2Array([
+		Vector2(32.0, 0.0), 
+		Vector2(-32.0, 32.0), 
+		Vector2(-32.0, -32.0)
+	])
+	
+	# Use undo/redo for the operation
+	var undo = _polygon_editor._plugin.get_undo_redo()
+	undo.create_action("Add default polygon points")
+	undo.add_do_method(self, "_do_set_points", default_points)
+	undo.add_undo_method(self, "_do_set_points", _target_object.get(_property_name))
+	undo.commit_action()
+	
+	# Start editing after adding points
+	_start_editing()
+
+func _do_set_points(points: PackedVector2Array):
+	_target_object.set(_property_name, points)
+	_update_button_text()
+
 func _start_editing():
 	if not is_instance_valid(_polygon_editor):
 		return
+	
+	var current_array: PackedVector2Array = _target_object.get(_property_name)
+	if current_array.size() < 3:
+		return  # Can't edit with less than 3 points
 	
 	# Stop any other active editing first
 	_polygon_editor.clear_current()
@@ -67,7 +116,7 @@ func _stop_editing():
 func _stop_editing_without_editor_call():
 	_is_editing = false
 	if is_instance_valid(_edit_button):
-		_edit_button.text = "Edit in 2D View"
+		_update_button_text()
 		_edit_button.modulate = Color.WHITE
 
 func _update_button_state():
@@ -76,6 +125,15 @@ func _update_button_state():
 	# Performance: Only update if state changed
 	if _needs_button_update or should_enable != _last_button_state:
 		_edit_button.disabled = not should_enable
-		_edit_button.tooltip_text = "Click to edit this PackedVector2Array as a polygon in the 2D view" if should_enable else "This feature only works with Node2D objects"
+		
+		if not should_enable:
+			_edit_button.tooltip_text = "This feature only works with Node2D objects"
+		else:
+			var current_array: PackedVector2Array = _target_object.get(_property_name)
+			if current_array.size() < 3:
+				_edit_button.tooltip_text = "Click to add 3 default points and start editing"
+			else:
+				_edit_button.tooltip_text = "Click to edit this PackedVector2Array as a polygon in the 2D view"
+		
 		_last_button_state = should_enable
 		_needs_button_update = false

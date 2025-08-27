@@ -85,16 +85,17 @@ func draw_overlay(overlay: Control):
 	if _polygon_data.vertices.is_empty():
 		return
 	
-	# FIXED: Draw polygon in world coordinates, just like reference plugin
-	overlay.draw_colored_polygon(_transform_to_screen * _polygon_data.vertices, POLYGON_COLOR)
+	# Only draw polygon if we have at least 3 vertices
+	if _polygon_data.vertices.size() >= 3:
+		overlay.draw_colored_polygon(_transform_to_screen * _polygon_data.vertices, POLYGON_COLOR)
 	
 	# Draw vertices
 	for i in range(_polygon_data.vertices.size()):
 		var screen_pos = _transform_to_screen * _polygon_data.vertices[i]
 		_draw_vertex(overlay, screen_pos, i)
 	
-	# Draw ghost vertex for adding (using stored position)
-	if _can_add_at != -1:
+	# Only show ghost vertex for adding if we have enough vertices to form a polygon
+	if _can_add_at != -1 and _polygon_data.vertices.size() >= 3:
 		_draw_ghost_vertex(overlay, _ghost_vertex_pos)
 
 func handle_input(event) -> bool:
@@ -150,8 +151,8 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> bool:
 		
 		_active_vertex_index = _get_active_vertex()
 		
-		# FIXED: Always update ghost vertex position when not hovering vertex
-		if _active_vertex_index == -1:
+		# Only show ghost vertex if we have at least 3 vertices (can form a polygon)
+		if _active_vertex_index == -1 and _polygon_data.vertices.size() >= 3:
 			var add_result = _get_active_side_optimized()
 			_can_add_at = add_result.index
 			_ghost_vertex_pos = add_result.position
@@ -199,6 +200,9 @@ func _get_active_side_optimized() -> Dictionary:
 		return result
 	
 	var size = _polygon_data.vertices.size()
+	if size < 3:  # Need at least 3 vertices to form sides
+		return result
+		
 	var min_distance = CURSOR_THRESHOLD
 	var best_index = -1
 	var best_position = Vector2.ZERO
@@ -260,6 +264,7 @@ func _add_vertex():
 	_can_add_at = -1
 
 func _remove_vertex():
+	# Can only remove vertices if we have more than 3 (to maintain polygon)
 	if _active_vertex_index == -1 or _polygon_data.vertices.size() <= 3:
 		return
 	
@@ -325,8 +330,7 @@ class PolygonData:
 	
 	func set_from_object(object: Object, property: String):
 		vertices = object.get(property)
-		if vertices.is_empty():
-			_init_default_polygon(object, property)
+		# Remove the auto-initialization - let the property editor handle this
 	
 	func clear():
 		vertices = PackedVector2Array()
@@ -339,10 +343,3 @@ class PolygonData:
 	
 	func set_vertex(index: int, vertex: Vector2):
 		vertices[index] = vertex
-	
-	func _init_default_polygon(object: Object, property: String):
-		vertices = PackedVector2Array([
-			Vector2(32.0, 0.0), Vector2(-32.0, 32.0), 
-			Vector2(-32.0, -32.0), Vector2(32.0, -32.0)
-		])
-		object.set(property, vertices)

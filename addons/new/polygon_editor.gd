@@ -103,7 +103,7 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 	_current_property = property
 	_current_property_editor = property_editor
 	
-	if object and property and object is Node2D:
+	if object and property and object is CanvasItem:
 		_polygon_data.set_from_object(object, property)
 		
 		# Initialize sync tracking
@@ -193,7 +193,7 @@ func _is_editing_valid() -> bool:
 	if not is_instance_valid(_current_object):
 		clear_current()
 		return false
-	if not _current_object is Node2D:
+	if not _current_object is CanvasItem:
 		return false
 	return true
 
@@ -201,8 +201,8 @@ func _update_transforms():
 	if not _is_editing_valid():
 		return
 	
-	var node = _current_object as Node2D
-	# EXACTLY like reference plugin
+	var node = _current_object as CanvasItem
+	# Works for both Node2D and Control - they both inherit from CanvasItem
 	var transform_viewport = node.get_viewport_transform()
 	var transform_canvas = node.get_canvas_transform()
 	var transform_local = node.transform

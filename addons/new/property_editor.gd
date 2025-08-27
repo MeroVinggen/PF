@@ -123,7 +123,7 @@ func _handle_external_array_change(new_array: PackedVector2Array):
 	_last_known_array = new_array.duplicate()
 	
 	# ALWAYS update button text when array changes
-	call_deferred("_update_button_text")
+	refresh_button_text()
 	
 	# If we're currently editing, handle the change
 	if _is_editing:
@@ -139,6 +139,10 @@ func _handle_external_array_change(new_array: PackedVector2Array):
 
 func _update_button_text():
 	if not is_instance_valid(_target_object):
+		return
+	
+	if _edit_button.disabled:
+		_edit_button.text = "Unsupported node"
 		return
 	
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
@@ -215,7 +219,7 @@ func _do_set_points(points: PackedVector2Array):
 	_target_object.set(_property_name, points)
 	_last_known_array = points.duplicate()  # Update our tracking
 	# FORCE button text update immediately
-	call_deferred("_update_button_text")
+	refresh_button_text()
 
 func _start_editing():
 	if not is_instance_valid(_polygon_editor):
@@ -256,7 +260,7 @@ func _stop_editing_without_editor_call():
 	if is_instance_valid(_edit_button):
 		_edit_button.modulate = Color.WHITE
 		# FORCE button text update when stopping editing
-		call_deferred("_update_button_text")
+		refresh_button_text()
 
 # Public method that can be called by PolygonEditor to notify this editor to stop
 func notify_stop_editing():
@@ -264,14 +268,15 @@ func notify_stop_editing():
 	_stop_editing_without_editor_call()
 
 func _update_button_state():
-	var should_enable = _target_object and _target_object is Node2D
+	var should_enable = _target_object and _target_object is CanvasItem
 	
 	# Performance: Only update if state changed
 	if _needs_button_update or should_enable != _last_button_state:
 		_edit_button.disabled = not should_enable
+		refresh_button_text()
 		
 		if not should_enable:
-			_edit_button.tooltip_text = "This feature only works with Node2D objects"
+			_edit_button.tooltip_text = "This feature only works with CanvasItem objects (Node2D and Control)"
 		else:
 			var current_array: PackedVector2Array = _target_object.get(_property_name)
 			if current_array.size() < 3:

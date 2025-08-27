@@ -5,6 +5,7 @@ extends RefCounted
 # Visual constants
 const CURSOR_THRESHOLD := 6.0
 const VERTEX_RADIUS := 6.0
+const VERTEX_EXCLUSION_RADIUS := 20.0  # 2x vertex radius - no ghost hints near existing vertices
 const VERTEX_COLOR := Color(0.0, 0.5, 1.0, 0.5)
 const VERTEX_ACTIVE_COLOR := Color(1.0, 1.0, 1.0)
 const VERTEX_NEW_COLOR := Color(0.0, 1.0, 1.0, 0.5)
@@ -26,6 +27,9 @@ var _can_add_at: int = -1
 var _is_dragging: bool = false
 var _drag_start_pos: Vector2
 var _cursor_pos: Vector2
+
+# NEW: Ghost vertex positioning
+var _ghost_vertex_pos: Vector2
 
 func setup(plugin: EditorPlugin):
 	_plugin = plugin
@@ -89,9 +93,9 @@ func draw_overlay(overlay: Control):
 		var screen_pos = _transform_to_screen * _polygon_data.vertices[i]
 		_draw_vertex(overlay, screen_pos, i)
 	
-	# Draw ghost vertex for adding
+	# Draw ghost vertex for adding (using stored position)
 	if _can_add_at != -1:
-		_draw_ghost_vertex(overlay, _cursor_pos)
+		_draw_ghost_vertex(overlay, _ghost_vertex_pos)
 
 func handle_input(event) -> bool:
 	if not _is_editing_valid():
@@ -142,11 +146,22 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> bool:
 		# Update hover states
 		var old_active = _active_vertex_index
 		var old_add = _can_add_at
+		var old_ghost_pos = _ghost_vertex_pos
 		
 		_active_vertex_index = _get_active_vertex()
-		_can_add_at = _get_active_side() if _active_vertex_index == -1 else -1
 		
-		return old_active != _active_vertex_index or old_add != _can_add_at
+		# FIXED: Always update ghost vertex position when not hovering vertex
+		if _active_vertex_index == -1:
+			var add_result = _get_active_side_optimized()
+			_can_add_at = add_result.index
+			_ghost_vertex_pos = add_result.position
+		else:
+			_can_add_at = -1
+		
+		# Return true if ANY of these changed (including ghost position)
+		return (old_active != _active_vertex_index or 
+				old_add != _can_add_at or 
+				old_ghost_pos != _ghost_vertex_pos)
 	
 	return false
 
@@ -176,31 +191,64 @@ func _get_active_vertex() -> int:
 			return i
 	return -1
 
-func _get_active_side() -> int:
+# OPTIMIZED: More responsive ghost vertex positioning with exclusion zones
+func _get_active_side_optimized() -> Dictionary:
+	var result = {"index": -1, "position": Vector2.ZERO}
+	
 	if _active_vertex_index != -1:
-		return -1
+		return result
 	
 	var size = _polygon_data.vertices.size()
+	var min_distance = CURSOR_THRESHOLD
+	var best_index = -1
+	var best_position = Vector2.ZERO
+	
 	for i in range(size):
 		var a = _transform_to_screen * _polygon_data.vertices[i]
 		var b = _transform_to_screen * _polygon_data.vertices[(i + 1) % size]
 		
-		var ab = (b - a).length()
-		var ac = (_cursor_pos - a).length()
-		var bc = (_cursor_pos - b).length()
+		# Find closest point on line segment to cursor
+		var closest_point = _get_closest_point_on_segment(a, b, _cursor_pos)
+		var distance = (_cursor_pos - closest_point).length()
 		
-		if (ac + bc) - ab < CURSOR_THRESHOLD:
-			# Check height of triangle (distance from cursor to line)
-			var s = (ab + ac + bc) * 0.5
-			var area = sqrt(s * (s - ab) * (s - ac) * (s - bc))
-			var height = 2.0 * area / ab if ab > 0 else 999.0
+		if distance < min_distance:
+			# NEW: Check if ghost vertex would be too close to existing vertices
+			var too_close_to_vertex = false
+			for j in range(size):
+				var vertex_screen = _transform_to_screen * _polygon_data.vertices[j]
+				if (closest_point - vertex_screen).length() < VERTEX_EXCLUSION_RADIUS:
+					too_close_to_vertex = true
+					break
 			
-			if height < CURSOR_THRESHOLD:
-				return (i + 1) % size
-	return -1
+			if not too_close_to_vertex:
+				min_distance = distance
+				best_index = (i + 1) % size
+				best_position = closest_point
+	
+	if best_index != -1:
+		result.index = best_index
+		result.position = best_position
+	
+	return result
+
+# Helper function to find closest point on line segment
+func _get_closest_point_on_segment(a: Vector2, b: Vector2, point: Vector2) -> Vector2:
+	var ab = b - a
+	var ap = point - a
+	
+	# If segment has zero length, return point a
+	if ab.length_squared() == 0:
+		return a
+	
+	# Project point onto line, clamped to segment
+	var t = ap.dot(ab) / ab.length_squared()
+	t = clamp(t, 0.0, 1.0)
+	
+	return a + t * ab
 
 func _add_vertex():
-	var position = _transform_to_local * _cursor_pos
+	# Use the world position calculated from ghost vertex
+	var position = _transform_to_local * _ghost_vertex_pos
 	var index = _can_add_at
 	
 	var undo = _plugin.get_undo_redo()

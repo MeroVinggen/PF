@@ -31,14 +31,58 @@ var _cursor_pos: Vector2
 # NEW: Ghost vertex positioning
 var _ghost_vertex_pos: Vector2
 
+# Two-way sync: Track external changes
+var _sync_timer: Timer
+var _last_sync_check: PackedVector2Array = PackedVector2Array()
+
 func setup(plugin: EditorPlugin):
 	_plugin = plugin
 	_polygon_data = PolygonData.new()
+	
+	# Setup sync monitoring timer
+	_sync_timer = Timer.new()
+	_sync_timer.wait_time = 0.05  # Check 20 times per second when editing
+	_sync_timer.autostart = false
+	_sync_timer.timeout.connect(_check_for_external_sync)
 
 func cleanup():
+	if _sync_timer:
+		_sync_timer.queue_free()
+		_sync_timer = null
 	clear_current()
 	_polygon_data = null
 	_plugin = null
+
+func _check_for_external_sync():
+	if not _is_editing_valid():
+		return
+	
+	var current_array: PackedVector2Array = _current_object.get(_current_property)
+	
+	# Check if the array changed externally
+	if not _arrays_equal(current_array, _last_sync_check):
+		print("PolygonEditor detected external change")
+		
+		# If array is too small, we should stop editing
+		if current_array.size() < 3:
+			print("Array reduced below 3 points - clearing current editing")
+			clear_current()
+			return
+		
+		# Update our data and refresh display
+		_polygon_data.vertices = current_array.duplicate()
+		_last_sync_check = current_array.duplicate()
+		_request_overlay_update()
+
+func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
+	if a.size() != b.size():
+		return false
+	
+	for i in range(a.size()):
+		if a[i] != b[i]:
+			return false
+	
+	return true
 
 func set_current(object: Object, property: String):
 	print("Setting current: ", object, " property: ", property)
@@ -53,6 +97,17 @@ func set_current(object: Object, property: String):
 	if object and property and object is Node2D:
 		_polygon_data.set_from_object(object, property)
 		
+		# Initialize sync tracking
+		_last_sync_check = _polygon_data.vertices.duplicate()
+		
+		# Start sync monitoring
+		if _sync_timer and not _sync_timer.is_inside_tree():
+			# Add timer to scene tree if not already there
+			_plugin.add_child(_sync_timer)
+		
+		if _sync_timer:
+			_sync_timer.start()
+		
 		# Force editor selection
 		EditorInterface.get_selection().clear()
 		EditorInterface.get_selection().add_node(object)
@@ -60,6 +115,12 @@ func set_current(object: Object, property: String):
 	_request_overlay_update()
 
 func clear_current():
+	# Stop sync monitoring
+	if _sync_timer:
+		_sync_timer.stop()
+		if _sync_timer.is_inside_tree():
+			_sync_timer.get_parent().remove_child(_sync_timer)
+	
 	_current_object = null
 	_current_property = ""
 	if _polygon_data:
@@ -67,6 +128,7 @@ func clear_current():
 	_active_vertex_index = -1
 	_can_add_at = -1
 	_is_dragging = false
+	_last_sync_check.clear()
 	_request_overlay_update()
 
 func handles(object) -> bool:
@@ -300,15 +362,29 @@ func _do_add_vertex(index: int, vertex: Vector2):
 	_polygon_data.insert_vertex(index, vertex)
 	_current_object.set(_current_property, _polygon_data.vertices)
 	_active_vertex_index = index
+	
+	# Update sync tracking
+	_last_sync_check = _polygon_data.vertices.duplicate()
 
 func _do_remove_vertex(index: int):
 	_polygon_data.remove_vertex(index)
 	_current_object.set(_current_property, _polygon_data.vertices)
 	_active_vertex_index = -1
+	
+	# Update sync tracking
+	_last_sync_check = _polygon_data.vertices.duplicate()
+	
+	# Check if we should stop editing due to insufficient points
+	if _polygon_data.vertices.size() < 3:
+		print("Polygon reduced to less than 3 vertices - clearing current editing")
+		call_deferred("clear_current")  # Defer to avoid issues during undo/redo
 
 func _do_update_vertex(index: int, vertex: Vector2):
 	_polygon_data.set_vertex(index, vertex)
 	_current_object.set(_current_property, _polygon_data.vertices)
+	
+	# Update sync tracking
+	_last_sync_check = _polygon_data.vertices.duplicate()
 
 func _draw_vertex(overlay: Control, position: Vector2, index: int):
 	overlay.draw_circle(position, VERTEX_RADIUS, VERTEX_COLOR)

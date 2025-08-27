@@ -12,9 +12,15 @@ var _is_editing: bool = false
 var _last_button_state: bool = false
 var _needs_button_update: bool = true
 
+# Two-way sync: Track last known array state
+var _last_known_array: PackedVector2Array = PackedVector2Array()
+var _sync_timer: Timer
+
 func _exit_tree():
 	if _is_editing:
 		_stop_editing()
+	if _sync_timer:
+		_sync_timer.queue_free()
 
 func setup(polygon_editor: PolygonEditor, object: Object, prop_name: String):
 	_polygon_editor = polygon_editor
@@ -22,11 +28,36 @@ func setup(polygon_editor: PolygonEditor, object: Object, prop_name: String):
 	_property_name = prop_name
 	
 	_create_ui()
+	_setup_sync_monitoring()
+	_setup_property_notifications()
 	_update_button_state()
+
+func _setup_property_notifications():
+	# Try to connect to the target object's property change signals if available
+	if is_instance_valid(_target_object):
+		# Many Node types emit changed signal when properties are modified
+		if _target_object.has_signal("changed"):
+			if not _target_object.changed.is_connected(_on_target_property_changed):
+				_target_object.changed.connect(_on_target_property_changed)
+		# Some objects have property_list_changed
+		elif _target_object.has_signal("property_list_changed"):
+			if not _target_object.property_list_changed.is_connected(_on_target_property_changed):
+				_target_object.property_list_changed.connect(_on_target_property_changed)
 
 func cleanup():
 	if _is_editing:
 		_stop_editing_without_editor_call()
+	if _sync_timer:
+		_sync_timer.queue_free()
+		_sync_timer = null
+	
+	# Disconnect signals
+	if is_instance_valid(_target_object):
+		if _target_object.has_signal("changed") and _target_object.changed.is_connected(_on_target_property_changed):
+			_target_object.changed.disconnect(_on_target_property_changed)
+		elif _target_object.has_signal("property_list_changed") and _target_object.property_list_changed.is_connected(_on_target_property_changed):
+			_target_object.property_list_changed.disconnect(_on_target_property_changed)
+	
 	_polygon_editor = null
 
 func _create_ui():
@@ -34,6 +65,57 @@ func _create_ui():
 	_edit_button.pressed.connect(_on_edit_pressed)
 	add_child(_edit_button)
 	_update_button_text()
+
+func _setup_sync_monitoring():
+	# Create a timer to periodically check for external changes
+	_sync_timer = Timer.new()
+	_sync_timer.wait_time = 0.1  # Check 10 times per second
+	_sync_timer.autostart = false
+	_sync_timer.timeout.connect(_check_for_external_changes)
+	add_child(_sync_timer)
+	
+	# Initialize last known state
+	if is_instance_valid(_target_object):
+		_last_known_array = _target_object.get(_property_name).duplicate()
+
+func _check_for_external_changes():
+	if not is_instance_valid(_target_object):
+		return
+	
+	var current_array: PackedVector2Array = _target_object.get(_property_name)
+	
+	# Check if array has changed externally (not by our editor)
+	if not _arrays_equal(current_array, _last_known_array):
+		print("Detected external change to ", _property_name)
+		_handle_external_array_change(current_array)
+
+func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
+	if a.size() != b.size():
+		return false
+	
+	for i in range(a.size()):
+		if a[i] != b[i]:
+			return false
+	
+	return true
+
+func _handle_external_array_change(new_array: PackedVector2Array):
+	_last_known_array = new_array.duplicate()
+	
+	# Update button text regardless
+	_update_button_text()
+	
+	# If we're currently editing, handle the change
+	if _is_editing:
+		if new_array.size() < 3:
+			# Array has been reduced below minimum - stop editing
+			print("Array reduced below 3 points - stopping editing")
+			_stop_editing()
+		else:
+			# Array still valid - sync with polygon editor
+			if is_instance_valid(_polygon_editor):
+				_polygon_editor._polygon_data.vertices = new_array.duplicate()
+				_polygon_editor._request_overlay_update()
 
 func _update_button_text():
 	if not is_instance_valid(_target_object):
@@ -109,6 +191,7 @@ func _add_needed_points():
 
 func _do_set_points(points: PackedVector2Array):
 	_target_object.set(_property_name, points)
+	_last_known_array = points.duplicate()  # Update our tracking
 	_update_button_text()
 
 func _start_editing():
@@ -125,6 +208,9 @@ func _start_editing():
 	_is_editing = true
 	_polygon_editor.set_current(_target_object, _property_name)
 	
+	# Start monitoring for external changes
+	_sync_timer.start()
+	
 	_edit_button.text = "Stop Editing"
 	_edit_button.modulate = Color.GREEN
 	
@@ -140,6 +226,11 @@ func _stop_editing():
 
 func _stop_editing_without_editor_call():
 	_is_editing = false
+	
+	# Stop monitoring for external changes
+	if _sync_timer:
+		_sync_timer.stop()
+	
 	if is_instance_valid(_edit_button):
 		_update_button_text()
 		_edit_button.modulate = Color.WHITE
@@ -166,3 +257,10 @@ func _update_button_state():
 		
 		_last_button_state = should_enable
 		_needs_button_update = false
+
+# Connect to property change notifications if available
+func _on_target_property_changed():
+	if is_instance_valid(_target_object):
+		var current_array: PackedVector2Array = _target_object.get(_property_name)
+		if not _arrays_equal(current_array, _last_known_array):
+			_handle_external_array_change(current_array)

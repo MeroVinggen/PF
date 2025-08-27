@@ -42,7 +42,11 @@ func _update_button_text():
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
 	
 	if current_array.size() < 3:
-		_edit_button.text = "Add Default Points"
+		var points_needed = 3 - current_array.size()
+		if current_array.size() == 0:
+			_edit_button.text = "Add 3 Default Points"
+		else:
+			_edit_button.text = "Add %d More Points" % points_needed
 	elif _is_editing:
 		_edit_button.text = "Stop Editing"
 	else:
@@ -55,28 +59,49 @@ func _on_edit_pressed():
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
 	
 	if current_array.size() < 3:
-		_add_default_points()
+		_add_needed_points()
 	elif _is_editing:
 		_stop_editing()
 	else:
 		_start_editing()
 
-func _add_default_points():
+func _add_needed_points():
 	if not is_instance_valid(_polygon_editor):
 		return
 	
-	# Create default triangle
-	var default_points = PackedVector2Array([
-		Vector2(32.0, 0.0), 
-		Vector2(-32.0, 32.0), 
-		Vector2(-32.0, -32.0)
-	])
+	var current_array: PackedVector2Array = _target_object.get(_property_name)
+	var points_needed = 3 - current_array.size()
+	
+	# Create new array with existing points plus needed points
+	var new_points = PackedVector2Array(current_array)
+	
+	# Add points based on what we already have
+	match current_array.size():
+		0:
+			# No existing points - add default triangle
+			new_points.append(Vector2(32.0, 0.0))
+			new_points.append(Vector2(-32.0, 32.0))
+			new_points.append(Vector2(-32.0, -32.0))
+		1:
+			# One existing point - add two more to form triangle
+			var existing_point = current_array[0]
+			new_points.append(existing_point + Vector2(64.0, 0.0))
+			new_points.append(existing_point + Vector2(0.0, 64.0))
+		2:
+			# Two existing points - add one more to complete triangle
+			var p1 = current_array[0]
+			var p2 = current_array[1]
+			# Create third point to form a triangle (perpendicular to the line between p1 and p2)
+			var midpoint = (p1 + p2) * 0.5
+			var direction = (p2 - p1).normalized()
+			var perpendicular = Vector2(-direction.y, direction.x) * 32.0
+			new_points.append(midpoint + perpendicular)
 	
 	# Use undo/redo for the operation
 	var undo = _polygon_editor._plugin.get_undo_redo()
-	undo.create_action("Add default polygon points")
-	undo.add_do_method(self, "_do_set_points", default_points)
-	undo.add_undo_method(self, "_do_set_points", _target_object.get(_property_name))
+	undo.create_action("Add needed polygon points")
+	undo.add_do_method(self, "_do_set_points", new_points)
+	undo.add_undo_method(self, "_do_set_points", current_array)
 	undo.commit_action()
 	
 	# Start editing after adding points
@@ -131,7 +156,11 @@ func _update_button_state():
 		else:
 			var current_array: PackedVector2Array = _target_object.get(_property_name)
 			if current_array.size() < 3:
-				_edit_button.tooltip_text = "Click to add 3 default points and start editing"
+				var points_needed = 3 - current_array.size()
+				if current_array.size() == 0:
+					_edit_button.tooltip_text = "Click to add 3 default points and start editing"
+				else:
+					_edit_button.tooltip_text = "Click to add %d more points to complete polygon" % points_needed
 			else:
 				_edit_button.tooltip_text = "Click to edit this PackedVector2Array as a polygon in the 2D view"
 		

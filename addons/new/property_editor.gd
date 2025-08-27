@@ -16,7 +16,20 @@ var _needs_button_update: bool = true
 var _last_known_array: PackedVector2Array = PackedVector2Array()
 var _sync_timer: Timer
 
-func _exit_tree():
+func _ready():
+	# Force an update when the property editor is ready
+	call_deferred("_force_sync_check")
+
+func _force_sync_check():
+	if is_instance_valid(_target_object):
+		var current_array: PackedVector2Array = _target_object.get(_property_name)
+		if not _arrays_equal(current_array, _last_known_array):
+			_handle_external_array_change(current_array)
+
+# Override update_property to catch when Godot updates the property
+func update_property():
+	super.update_property()  # Call parent implementation
+	call_deferred("_force_sync_check")
 	if _is_editing:
 		_stop_editing()
 	if _sync_timer:
@@ -69,8 +82,8 @@ func _create_ui():
 func _setup_sync_monitoring():
 	# Create a timer to periodically check for external changes
 	_sync_timer = Timer.new()
-	_sync_timer.wait_time = 0.1  # Check 10 times per second
-	_sync_timer.autostart = false
+	_sync_timer.wait_time = 0.2  # Check 5 times per second (less frequent when not editing)
+	_sync_timer.autostart = true  # Always start monitoring
 	_sync_timer.timeout.connect(_check_for_external_changes)
 	add_child(_sync_timer)
 	
@@ -93,7 +106,7 @@ func _check_for_external_changes():
 	
 	# Check if array has changed externally (not by our editor)
 	if not _arrays_equal(current_array, _last_known_array):
-		print("Detected external change to ", _property_name)
+		print("External change detected - old size: ", _last_known_array.size(), ", new size: ", current_array.size())
 		_handle_external_array_change(current_array)
 
 func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
@@ -109,8 +122,8 @@ func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
 func _handle_external_array_change(new_array: PackedVector2Array):
 	_last_known_array = new_array.duplicate()
 	
-	# Update button text regardless
-	_update_button_text()
+	# ALWAYS update button text when array changes
+	call_deferred("_update_button_text")
 	
 	# If we're currently editing, handle the change
 	if _is_editing:
@@ -140,6 +153,8 @@ func _update_button_text():
 		_edit_button.text = "Stop Editing"
 	else:
 		_edit_button.text = "Edit in 2D View"
+	
+	print("Button text updated to: ", _edit_button.text, " (array size: ", current_array.size(), ", is_editing: ", _is_editing, ")")
 
 func _on_edit_pressed():
 	if not is_instance_valid(_target_object):
@@ -199,7 +214,8 @@ func _add_needed_points():
 func _do_set_points(points: PackedVector2Array):
 	_target_object.set(_property_name, points)
 	_last_known_array = points.duplicate()  # Update our tracking
-	_update_button_text()
+	# FORCE button text update immediately
+	call_deferred("_update_button_text")
 
 func _start_editing():
 	if not is_instance_valid(_polygon_editor):
@@ -213,8 +229,9 @@ func _start_editing():
 	_is_editing = true
 	_polygon_editor.set_current(_target_object, _property_name, self)
 	
-	# Start monitoring for external changes
-	_sync_timer.start()
+	# Increase monitoring frequency while editing
+	if _sync_timer:
+		_sync_timer.wait_time = 0.05  # Check 20 times per second when editing
 	
 	_edit_button.text = "Stop Editing"
 	_edit_button.modulate = Color.GREEN
@@ -232,13 +249,14 @@ func _stop_editing():
 func _stop_editing_without_editor_call():
 	_is_editing = false
 	
-	# Stop monitoring for external changes
+	# Reduce monitoring frequency when not editing
 	if _sync_timer:
-		_sync_timer.stop()
+		_sync_timer.wait_time = 0.2  # Back to slower polling
 	
 	if is_instance_valid(_edit_button):
-		_update_button_text()
 		_edit_button.modulate = Color.WHITE
+		# FORCE button text update when stopping editing
+		call_deferred("_update_button_text")
 
 # Public method that can be called by PolygonEditor to notify this editor to stop
 func notify_stop_editing():
@@ -274,3 +292,7 @@ func _on_target_property_changed():
 		var current_array: PackedVector2Array = _target_object.get(_property_name)
 		if not _arrays_equal(current_array, _last_known_array):
 			_handle_external_array_change(current_array)
+
+# PUBLIC METHOD: Called by PolygonEditor when vertices change
+func refresh_button_text():
+	call_deferred("_update_button_text")

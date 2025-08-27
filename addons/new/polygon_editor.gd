@@ -202,10 +202,37 @@ func _update_transforms():
 		return
 	
 	var node = _current_object as CanvasItem
-	# Works for both Node2D and Control - they both inherit from CanvasItem
 	var transform_viewport = node.get_viewport_transform()
 	var transform_canvas = node.get_canvas_transform()
-	var transform_local = node.transform
+	
+	# Handle different node types for local transform
+	var transform_local: Transform2D
+	if node is Node2D:
+		# Node2D nodes have a transform property
+		transform_local = (node as Node2D).transform
+	elif node is Control:
+		# Control nodes use position, rotation, scale, and pivot_offset
+		var control = node as Control
+		transform_local = Transform2D()
+		
+		# Apply scale
+		transform_local = transform_local.scaled(control.scale)
+		
+		# Apply rotation
+		if control.rotation != 0.0:
+			transform_local = transform_local.rotated(control.rotation)
+		
+		# Apply translation (position - pivot_offset, then add pivot_offset back)
+		var pivot = control.pivot_offset
+		transform_local.origin = control.position + pivot
+		if pivot != Vector2.ZERO:
+			# Rotate and scale the pivot offset, then subtract it
+			var transformed_pivot = transform_local.basis_xform(pivot)
+			transform_local.origin -= transformed_pivot
+	else:
+		# Fallback for other CanvasItem types
+		transform_local = Transform2D()
+	
 	_transform_to_screen = transform_viewport * transform_canvas * transform_local
 	_transform_to_local = _transform_to_screen.affine_inverse()
 

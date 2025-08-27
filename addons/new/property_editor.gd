@@ -82,6 +82,13 @@ func _check_for_external_changes():
 	if not is_instance_valid(_target_object):
 		return
 	
+	# Check if we think we're editing but the polygon editor is not editing us
+	if _is_editing and is_instance_valid(_polygon_editor):
+		if _polygon_editor._current_property_editor != self:
+			print("Detected that another editor took over - stopping editing")
+			notify_stop_editing()
+			return
+	
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
 	
 	# Check if array has changed externally (not by our editor)
@@ -186,8 +193,8 @@ func _add_needed_points():
 	undo.add_undo_method(self, "_do_set_points", current_array)
 	undo.commit_action()
 	
-	# Start editing after adding points
-	_start_editing()
+	# Start editing after adding points (this will properly handle multiple editors)
+	call_deferred("_start_editing")
 
 func _do_set_points(points: PackedVector2Array):
 	_target_object.set(_property_name, points)
@@ -202,11 +209,9 @@ func _start_editing():
 	if current_array.size() < 3:
 		return  # Can't edit with less than 3 points
 	
-	# Stop any other active editing first
-	_polygon_editor.clear_current()
-	
+	# Pass ourselves to the polygon editor so it can manage multiple editors
 	_is_editing = true
-	_polygon_editor.set_current(_target_object, _property_name)
+	_polygon_editor.set_current(_target_object, _property_name, self)
 	
 	# Start monitoring for external changes
 	_sync_timer.start()
@@ -234,6 +239,11 @@ func _stop_editing_without_editor_call():
 	if is_instance_valid(_edit_button):
 		_update_button_text()
 		_edit_button.modulate = Color.WHITE
+
+# Public method that can be called by PolygonEditor to notify this editor to stop
+func notify_stop_editing():
+	print("Property editor for ", _property_name, " notified to stop editing")
+	_stop_editing_without_editor_call()
 
 func _update_button_state():
 	var should_enable = _target_object and _target_object is Node2D

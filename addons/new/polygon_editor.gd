@@ -17,6 +17,9 @@ var _current_object: Object
 var _current_property: String
 var _polygon_data: PolygonData
 
+# Track active property editor for proper cleanup
+var _current_property_editor: Vector2ArrayPropertyEditor
+
 # Transform caching (like reference plugin)
 var _transform_to_screen: Transform2D
 var _transform_to_local: Transform2D
@@ -84,8 +87,13 @@ func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
 	
 	return true
 
-func set_current(object: Object, property: String):
+func set_current(object: Object, property: String, property_editor: Vector2ArrayPropertyEditor = null):
 	print("Setting current: ", object, " property: ", property)
+	
+	# If we're switching to a different property editor, notify the old one to stop
+	if _current_property_editor and _current_property_editor != property_editor and is_instance_valid(_current_property_editor):
+		print("Notifying previous property editor to stop editing")
+		_current_property_editor.notify_stop_editing()
 	
 	# Clear previous state
 	clear_current()
@@ -93,6 +101,7 @@ func set_current(object: Object, property: String):
 	# Set new state
 	_current_object = object
 	_current_property = property
+	_current_property_editor = property_editor
 	
 	if object and property and object is Node2D:
 		_polygon_data.set_from_object(object, property)
@@ -123,6 +132,7 @@ func clear_current():
 	
 	_current_object = null
 	_current_property = ""
+	_current_property_editor = null
 	if _polygon_data:
 		_polygon_data.clear()
 	_active_vertex_index = -1

@@ -10,9 +10,16 @@ func setup(polygon_editor: PolygonEditor):
 
 func cleanup():
 	print("inspector cleanup")
+	
+	# Clean up all property editors with proper signal disconnection
 	for editor in _property_editors:
 		if is_instance_valid(editor):
+			# Disconnect our tracking signal first
+			if editor.tree_exiting.is_connected(_on_property_editor_removed):
+				editor.tree_exiting.disconnect(_on_property_editor_removed)
+			# Call the editor's cleanup method
 			editor.cleanup()
+	
 	_property_editors.clear()
 	_polygon_editor = null
 

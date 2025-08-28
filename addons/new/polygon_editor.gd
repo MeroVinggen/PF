@@ -53,8 +53,14 @@ func setup(plugin: EditorPlugin):
 
 func cleanup():
 	print("cleanup")
-	if _sync_timer and _sync_timer.is_inside_tree():
-		_sync_timer.queue_free()
+	
+	# Safe timer cleanup
+	if _sync_timer:
+		if _sync_timer.is_inside_tree():
+			_sync_timer.queue_free()
+		else:
+			# Timer already removed from tree, just clear reference
+			_sync_timer = null
 		_sync_timer = null
 	
 	clear_current()
@@ -66,23 +72,42 @@ func _on_timer_tick():
 	if not _is_editing_valid():
 		return
 	
-	# Check selection focus
+	# Enhanced selection and scene checking
 	var selection = EditorInterface.get_selection()
+	if not selection:
+		print("PolygonEditor: Selection no longer available")
+		call_deferred("clear_current")
+		return
+	
 	var selected_nodes = selection.get_selected_nodes()
 	var our_object_selected = false
+	
 	for node in selected_nodes:
-		if node == _current_object:
+		# Verify node is still valid and properly in the scene tree
+		if is_instance_valid(node) and node.is_inside_tree() and node == _current_object:
 			our_object_selected = true
 			break
 	
-	# If our object is no longer selected, stop editing
 	if not our_object_selected:
-		print("PolygonEditor: Node lost focus, stopping editing")
-		clear_current()
+		print("PolygonEditor: Node lost focus or removed from scene, stopping editing")
+		call_deferred("clear_current")
+		return
+	
+	# Verify current scene hasn't changed
+	var current_scene = EditorInterface.get_edited_scene_root()
+	if not current_scene:
+		print("PolygonEditor: Edited scene root is no longer available")
+		call_deferred("clear_current")
+		return
+	
+	# Additional safety: check if we can still access the property
+	var current_array: PackedVector2Array = _current_object.get(_current_property)
+	if current_array == null:
+		print("PolygonEditor: Cannot access property anymore")
+		call_deferred("clear_current")
 		return
 	
 	# OPTIMIZED: Hash-based change detection
-	var current_array: PackedVector2Array = _current_object.get(_current_property)
 	var current_hash = _hash_array(current_array)
 	
 	if current_hash != _last_sync_hash:
@@ -91,7 +116,7 @@ func _on_timer_tick():
 		# If array is too small, we should stop editing
 		if current_array.size() < 3:
 			print("Array reduced below 3 points - clearing current editing")
-			clear_current()
+			call_deferred("clear_current")
 			return
 		
 		# Update our data and refresh display
@@ -174,23 +199,47 @@ func edit(object):
 	pass
 
 func draw_overlay(overlay: Control):
-	print("draw_overlay")
-	# CRITICAL: Only draw if we have a valid current object and it's still selected
+	# CRITICAL: Comprehensive validation before drawing
 	if not _is_editing_valid():
 		return
 	
-	# Double-check that our object is still selected
+	# Double-check that our object is still selected and exists in the scene tree
 	var selection = EditorInterface.get_selection()
 	var selected_nodes = selection.get_selected_nodes()
 	var our_object_selected = false
+	
 	for node in selected_nodes:
-		if node == _current_object:
+		# Verify node is still valid and in the scene tree
+		if is_instance_valid(node) and node.is_inside_tree() and node == _current_object:
 			our_object_selected = true
 			break
 	
 	if not our_object_selected:
-		# Object is no longer selected, don't draw anything
+		print("PolygonEditor: Object no longer selected or in scene tree")
+		call_deferred("clear_current")
 		return
+	
+	# Verify the current scene hasn't changed
+	var current_scene = EditorInterface.get_edited_scene_root()
+	if not current_scene:
+		print("PolygonEditor: No edited scene root")
+		call_deferred("clear_current")
+		return
+	
+	# Check if our object is still a descendant of the current scene
+	if not _current_object.is_ancestor_of(current_scene) and _current_object != current_scene:
+		var node = _current_object
+		var is_descendant = false
+		while node:
+			if node == current_scene:
+				is_descendant = true
+				break
+			node = node.get_parent()
+		
+		if not is_descendant:
+			print("PolygonEditor: Object is no longer part of the current scene")
+			call_deferred("clear_current")
+			return
 	
 	_update_transforms()
 	
@@ -219,17 +268,27 @@ func handle_input(event) -> bool:
 	if not _is_editing_valid():
 		return false
 	
-	# Also check selection in input handling
+	# Comprehensive selection and scene validation
 	var selection = EditorInterface.get_selection()
 	var selected_nodes = selection.get_selected_nodes()
 	var our_object_selected = false
+	
 	for node in selected_nodes:
-		if node == _current_object:
+		# Verify node is still valid and in the scene tree
+		if is_instance_valid(node) and node.is_inside_tree() and node == _current_object:
 			our_object_selected = true
 			break
 	
 	if not our_object_selected:
-		# Object is no longer selected, don't handle input
+		print("PolygonEditor: Object no longer selected during input - clearing")
+		call_deferred("clear_current")
+		return false
+	
+	# Verify the current scene is still valid
+	var current_scene = EditorInterface.get_edited_scene_root()
+	if not current_scene or not _current_object.is_inside_tree():
+		print("PolygonEditor: Scene changed or object removed during input - clearing")
+		call_deferred("clear_current")
 		return false
 	
 	var handled := false
@@ -248,11 +307,45 @@ func handle_input(event) -> bool:
 func _is_editing_valid() -> bool:
 	if not _current_object or not _current_property:
 		return false
+	
+	# Check if object is still valid
 	if not is_instance_valid(_current_object):
-		clear_current()
+		print("PolygonEditor: Current object is no longer valid")
+		call_deferred("clear_current")
 		return false
+	
+	# Check if object is still a CanvasItem
 	if not _current_object is CanvasItem:
+		print("PolygonEditor: Current object is no longer a CanvasItem")
+		call_deferred("clear_current")
 		return false
+	
+	# Check if the property still exists on the object
+	if not _current_object.has_method("get") or not _current_object.has_method("set"):
+		print("PolygonEditor: Current object no longer supports property access")
+		call_deferred("clear_current")
+		return false
+	
+	# Verify the property exists and is the correct type
+	var property_list = _current_object.get_property_list()
+	var property_exists = false
+	for prop in property_list:
+		if prop.name == _current_property and prop.type == TYPE_PACKED_VECTOR2_ARRAY:
+			property_exists = true
+			break
+	
+	if not property_exists:
+		print("PolygonEditor: Property '", _current_property, "' no longer exists or wrong type")
+		call_deferred("clear_current")
+		return false
+	
+	# Additional check: verify we can actually get the property value
+	var test_value = _current_object.get(_current_property)
+	if not test_value is PackedVector2Array:
+		print("PolygonEditor: Property value is not a PackedVector2Array")
+		call_deferred("clear_current")
+		return false
+	
 	return true
 
 func _update_transforms():

@@ -31,12 +31,17 @@ func _force_sync_check():
 
 # Override update_property to catch when Godot updates the property
 func update_property():
-	super.update_property()  # Call parent implementation
+	super.update_property()
 	call_deferred("_force_sync_check")
 	if _is_editing:
 		_stop_editing()
+	
+	# Safe timer cleanup on property update
 	if _sync_timer:
-		_sync_timer.queue_free()
+		_disconnect_all_signals()  # Clean up before freeing timer
+		if _sync_timer.is_inside_tree():
+			_sync_timer.queue_free()
+		_sync_timer = null
 
 func setup(polygon_editor: PolygonEditor, object: Object, prop_name: String):
 	_polygon_editor = polygon_editor
@@ -92,8 +97,30 @@ func _check_for_external_changes():
 	# Don't check during suppressed periods
 	if _suppress_external_monitoring:
 		return
-		
+	
+	# Enhanced object validation
 	if not is_instance_valid(_target_object):
+		print("PropertyEditor: Target object no longer valid")
+		_stop_editing_without_editor_call()
+		return
+	
+	# Check if object is still in the scene tree
+	if not _target_object.is_inside_tree():
+		print("PropertyEditor: Target object no longer in scene tree")
+		_stop_editing_without_editor_call()
+		return
+	
+	# Verify property still exists
+	var property_list = _target_object.get_property_list()
+	var property_exists = false
+	for prop in property_list:
+		if prop.name == _property_name and prop.type == TYPE_PACKED_VECTOR2_ARRAY:
+			property_exists = true
+			break
+	
+	if not property_exists:
+		print("PropertyEditor: Property no longer exists or changed type")
+		_stop_editing_without_editor_call()
 		return
 	
 	# Check if we think we're editing but the polygon editor is not editing us
@@ -103,7 +130,12 @@ func _check_for_external_changes():
 			notify_stop_editing()
 			return
 	
+	# Safe property access
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
+	if current_array == null:
+		print("PropertyEditor: Cannot access property value")
+		_stop_editing_without_editor_call()
+		return
 	
 	# OPTIMIZED: Hash-based change detection
 	var current_hash = _hash_array(current_array)
@@ -328,3 +360,39 @@ func _on_target_property_changed():
 # PUBLIC METHOD: Called by PolygonEditor when vertices change
 func refresh_button_text():
 	call_deferred("_update_button_text")
+
+func cleanup():
+	print("Property editor cleanup for: ", _property_name)
+	
+	# Stop editing first
+	if _is_editing:
+		_stop_editing_without_editor_call()
+	
+	# Disconnect all signals safely
+	_disconnect_all_signals()
+	
+	# Clean up timer
+	if _sync_timer:
+		if _sync_timer.is_inside_tree():
+			_sync_timer.queue_free()
+		_sync_timer = null
+	
+	# Clear references
+	_polygon_editor = null
+	_target_object = null
+	_property_name = ""
+	_edit_button = null
+
+func _disconnect_all_signals():
+	# Safely disconnect from target object
+	if is_instance_valid(_target_object):
+		if _target_object.has_signal("changed"):
+			if _target_object.changed.is_connected(_on_target_property_changed):
+				_target_object.changed.disconnect(_on_target_property_changed)
+		elif _target_object.has_signal("property_list_changed"):
+			if _target_object.property_list_changed.is_connected(_on_target_property_changed):
+				_target_object.property_list_changed.disconnect(_on_target_property_changed)
+	
+	# Disconnect button signal if it exists
+	if is_instance_valid(_edit_button) and _edit_button.pressed.is_connected(_on_edit_pressed):
+		_edit_button.pressed.disconnect(_on_edit_pressed)

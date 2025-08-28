@@ -205,15 +205,9 @@ func _add_needed_points():
 	# Suppress external monitoring during the operation
 	_suppress_external_monitoring = true
 	
-	# Use undo/redo for the operation
-	var undo = _polygon_editor._plugin.get_undo_redo()
-	undo.create_action("Add needed polygon points")
-	undo.add_do_method(self, "_do_set_points", new_points)
-	undo.add_undo_method(self, "_do_set_points", current_array)
-	undo.commit_action()
-	
-	# Complete operation after undo/redo is done
-	call_deferred("_complete_point_addition")
+	# Direct operation without undo/redo
+	_do_set_points(new_points)
+	_complete_point_addition()
 
 func _complete_point_addition():
 	# Update hash and resume monitoring
@@ -229,7 +223,10 @@ func _complete_point_addition():
 
 func _do_set_points(points: PackedVector2Array):
 	_target_object.set(_property_name, points)
-	# Hash update and button refresh now handled by _complete_point_addition
+	# Update hash immediately
+	_last_known_hash = _hash_array(points)
+	# Force inspector update
+	emit_changed(_property_name, points, "", false)
 
 func _start_editing():
 	if not is_instance_valid(_polygon_editor):

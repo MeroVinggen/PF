@@ -38,8 +38,6 @@ var _ghost_vertex_pos: Vector2
 var _sync_timer: Timer
 var _last_sync_hash: int = 0
 
-var _in_undo_redo_operation: bool = false
-
 func setup(plugin: EditorPlugin):
 	_plugin = plugin
 	_polygon_data = PolygonData.new()
@@ -65,10 +63,6 @@ func cleanup():
 
 
 func _on_timer_tick():
-	# Don't sync during undo/redo operations
-	if _in_undo_redo_operation:
-		return
-		
 	if not _is_editing_valid():
 		return
 	
@@ -428,17 +422,7 @@ func _add_vertex():
 	var position = _transform_to_local * _ghost_vertex_pos
 	var index = _can_add_at
 	
-	_in_undo_redo_operation = true
-	
-	var undo = _plugin.get_undo_redo()
-	undo.create_action("Add vertex")
-	undo.add_do_method(self, "_do_add_vertex", index, position)
-	undo.add_undo_method(self, "_do_remove_vertex", index)
-	undo.commit_action()
-	
-	# Complete operation after undo/redo is done
-	call_deferred("_complete_undo_redo_operation")
-	
+	_do_add_vertex(index, position)
 	_can_add_at = -1
 
 func _remove_vertex():
@@ -447,91 +431,52 @@ func _remove_vertex():
 		return
 	
 	var index = _active_vertex_index
-	var vertex_backup = _polygon_data.vertices[index]
-	
-	_in_undo_redo_operation = true
-	
-	var undo = _plugin.get_undo_redo()
-	undo.create_action("Remove vertex")
-	undo.add_do_method(self, "_do_remove_vertex", index)
-	undo.add_undo_method(self, "_do_add_vertex", index, vertex_backup)
-	undo.commit_action()
-	
-	# Complete operation after undo/redo is done
-	call_deferred("_complete_undo_redo_operation")
-
-
-func _complete_undo_redo_operation():
-	# Update hash tracking after undo/redo completes
-	if _current_object and _current_property:
-		var current_array: PackedVector2Array = _current_object.get(_current_property)
-		_last_sync_hash = _hash_array(current_array)
-	
-	# Re-enable sync monitoring
-	_in_undo_redo_operation = false
-	
-	# Force inspector update
-	if _current_property_editor and is_instance_valid(_current_property_editor):
-		_current_property_editor.force_inspector_update()
+	_do_remove_vertex(index)
 
 func _force_inspector_update():
 	if _current_property_editor and is_instance_valid(_current_property_editor):
 		_current_property_editor.notify_vertex_change(false)  # Allow emit_changed after undo/redo is complete
 
 func _drag_vertex(position: Vector2):
-	if _active_vertex_index == -1 or _in_undo_redo_operation:
+	if _active_vertex_index == -1:
 		return
 	_do_update_vertex(_active_vertex_index, position.round())
-	
-	# For real-time dragging, we want immediate inspector updates
-	if _current_property_editor and is_instance_valid(_current_property_editor):
-		_current_property_editor.notify_vertex_change(false)  # false = allow emit_changed for real-time updates
-
 
 func _end_drag():
 	if not _is_dragging:
 		return
 	
 	var final_pos = (_transform_to_local * _cursor_pos).round()
-	if final_pos != _drag_start_pos:
-		_in_undo_redo_operation = true
-		
-		var undo = _plugin.get_undo_redo()
-		undo.create_action("Drag vertex")
-		undo.add_do_method(self, "_do_update_vertex", _active_vertex_index, final_pos)
-		undo.add_undo_method(self, "_do_update_vertex", _active_vertex_index, _drag_start_pos)
-		undo.commit_action()
-		
-		# Complete operation after undo/redo is done
-		call_deferred("_complete_undo_redo_operation")
-	
+	_do_update_vertex(_active_vertex_index, final_pos)
 	_is_dragging = false
 
 func _do_add_vertex(index: int, vertex: Vector2):
 	_polygon_data.insert_vertex(index, vertex)
 	_current_object.set(_current_property, _polygon_data.vertices)
 	_active_vertex_index = index
-	# Hash update and inspector notification now handled by _complete_undo_redo_operation
+	_last_sync_hash = _hash_array(_polygon_data.vertices)
+	_force_inspector_update()
 
 func _do_remove_vertex(index: int):
 	_polygon_data.remove_vertex(index)
 	_current_object.set(_current_property, _polygon_data.vertices)
 	_active_vertex_index = -1
+	_last_sync_hash = _hash_array(_polygon_data.vertices)
+	_force_inspector_update()
 	
 	# Check if we should stop editing due to insufficient points
 	if _polygon_data.vertices.size() < 3:
 		print("Polygon reduced to less than 3 vertices - clearing current editing")
-		call_deferred("clear_current")  # Defer to avoid issues during undo/redo
+		call_deferred("clear_current")
 
 func _do_update_vertex(index: int, vertex: Vector2):
 	_polygon_data.set_vertex(index, vertex)
 	_current_object.set(_current_property, _polygon_data.vertices)
+	_last_sync_hash = _hash_array(_polygon_data.vertices)
 	
-	# Only update hash and notify during real-time dragging (not undo/redo)
-	if not _in_undo_redo_operation:
-		_last_sync_hash = _hash_array(_polygon_data.vertices)
-		if _current_property_editor and is_instance_valid(_current_property_editor):
-			_current_property_editor.notify_vertex_change(false)
+	# Notify property editor for real-time updates
+	if _current_property_editor and is_instance_valid(_current_property_editor):
+		_current_property_editor.notify_vertex_change(false)
 
 func _draw_vertex(overlay: Control, position: Vector2, index: int):
 	overlay.draw_circle(position, VERTEX_RADIUS, VERTEX_COLOR)

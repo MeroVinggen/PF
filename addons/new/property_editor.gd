@@ -16,6 +16,8 @@ var _needs_button_update: bool = true
 var _last_known_hash: int = 0
 var _sync_timer: Timer
 
+var _suppress_external_monitoring: bool = false
+
 func _ready():
 	# Force an update when the property editor is ready
 	call_deferred("_force_sync_check")
@@ -87,6 +89,10 @@ func _hash_array(arr: PackedVector2Array) -> int:
 	return hash
 
 func _check_for_external_changes():
+	# Don't check during suppressed periods
+	if _suppress_external_monitoring:
+		return
+		
 	if not is_instance_valid(_target_object):
 		return
 	
@@ -196,6 +202,9 @@ func _add_needed_points():
 			var perpendicular = Vector2(-direction.y, direction.x) * 32.0
 			new_points[2] = midpoint + perpendicular
 	
+	# Suppress external monitoring during the operation
+	_suppress_external_monitoring = true
+	
 	# Use undo/redo for the operation
 	var undo = _polygon_editor._plugin.get_undo_redo()
 	undo.create_action("Add needed polygon points")
@@ -203,14 +212,24 @@ func _add_needed_points():
 	undo.add_undo_method(self, "_do_set_points", current_array)
 	undo.commit_action()
 	
+	# Complete operation after undo/redo is done
+	call_deferred("_complete_point_addition")
+
+func _complete_point_addition():
+	# Update hash and resume monitoring
+	if is_instance_valid(_target_object):
+		var current_array: PackedVector2Array = _target_object.get(_property_name)
+		_last_known_hash = _hash_array(current_array)
+	
+	_suppress_external_monitoring = false
+	refresh_button_text()
+	
 	# Start editing after adding points (this will properly handle multiple editors)
 	call_deferred("_start_editing")
 
 func _do_set_points(points: PackedVector2Array):
 	_target_object.set(_property_name, points)
-	_last_known_hash = _hash_array(points)  # Update our tracking
-	# FORCE button text update immediately
-	refresh_button_text()
+	# Hash update and button refresh now handled by _complete_point_addition
 
 func _start_editing():
 	if not is_instance_valid(_polygon_editor):
@@ -253,6 +272,9 @@ func notify_stop_editing():
 func notify_vertex_change(suppress_emit: bool = false):
 	if is_instance_valid(_target_object):
 		var current_array: PackedVector2Array = _target_object.get(_property_name)
+		
+		# Temporarily suppress external monitoring to prevent conflicts
+		_suppress_external_monitoring = true
 		_last_known_hash = _hash_array(current_array)
 		
 		# Only emit_changed if not suppressed (to avoid undo/redo conflicts)
@@ -260,6 +282,19 @@ func notify_vertex_change(suppress_emit: bool = false):
 			# Force the editor to update the property display
 			# This is what makes the array values update in real-time in the inspector
 			emit_changed(_property_name, current_array, "", false)
+		
+		# Re-enable monitoring after a short delay
+		call_deferred("_resume_external_monitoring")
+
+func _resume_external_monitoring():
+	_suppress_external_monitoring = false
+
+func force_inspector_update():
+	if is_instance_valid(_target_object):
+		var current_array: PackedVector2Array = _target_object.get(_property_name)
+		_last_known_hash = _hash_array(current_array)
+		emit_changed(_property_name, current_array, "", false)
+		refresh_button_text()
 
 func _update_button_state():
 	var should_enable = _target_object and _target_object is CanvasItem

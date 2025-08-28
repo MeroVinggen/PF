@@ -35,6 +35,7 @@ func _has_main_screen():
 	return false
 
 func _handles(object):
+	#return true
 	return _polygon_editor.handles(object) if _polygon_editor else false
 
 func _edit(object):

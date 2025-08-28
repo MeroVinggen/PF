@@ -53,14 +53,14 @@ func setup(plugin: EditorPlugin):
 	_sync_timer.timeout.connect(_check_for_external_sync)
 	
 	# Setup focus tracking timer
-	_focus_check_timer = Timer.new()
-	_focus_check_timer.wait_time = 0.1  # Check 10 times per second
-	_focus_check_timer.autostart = true
-	_focus_check_timer.timeout.connect(_check_selection_focus)
+	#_focus_check_timer = Timer.new()
+	#_focus_check_timer.wait_time = 0.1  # Check 10 times per second
+	#_focus_check_timer.autostart = true
+	#_focus_check_timer.timeout.connect(_check_selection_focus)
 	
 	# Add timers to plugin so they get cleaned up properly
 	_plugin.add_child(_sync_timer)
-	_plugin.add_child(_focus_check_timer)
+	#_plugin.add_child(_focus_check_timer)
 
 func cleanup():
 	print("cleanup")
@@ -76,28 +76,29 @@ func cleanup():
 	_polygon_data = null
 	_plugin = null
 
-func _check_selection_focus():
-	if not _is_editing_valid():
-		return
-	
-	var selection = EditorInterface.get_selection()
-	var selected_nodes = selection.get_selected_nodes()
-	
-	# Check if our current object is still selected
-	var our_object_selected = false
-	for node in selected_nodes:
-		if node == _current_object:
-			our_object_selected = true
-			break
-	
-	# If our object is no longer selected, stop editing
-	if not our_object_selected:
-		print("PolygonEditor: Node lost focus, stopping editing")
-		clear_current()
-		return
-	
-	# Update last selected nodes for comparison
-	_last_selected_nodes = selected_nodes.duplicate()
+#func _check_selection_focus():
+	#print("_check_selection_focus")
+	#if not _is_editing_valid():
+		#return
+	#
+	#var selection = EditorInterface.get_selection()
+	#var selected_nodes = selection.get_selected_nodes()
+	#
+	## Check if our current object is still selected
+	#var our_object_selected = false
+	#for node in selected_nodes:
+		#if node == _current_object:
+			#our_object_selected = true
+			#break
+	#
+	## If our object is no longer selected, stop editing
+	#if not our_object_selected:
+		#print("PolygonEditor: Node lost focus, stopping editing")
+		#clear_current()
+		#return
+	#
+	## Update last selected nodes for comparison
+	#_last_selected_nodes = selected_nodes.duplicate()
 
 func _check_for_external_sync():
 	if not _is_editing_valid():
@@ -190,6 +191,7 @@ func clear_current():
 	_request_overlay_update()
 
 func handles(object) -> bool:
+	print("handles: ", _current_object)
 	print("handles: ", _current_object != null and object == _current_object)
 	return _current_object != null and object == _current_object
 

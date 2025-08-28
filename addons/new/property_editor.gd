@@ -57,21 +57,22 @@ func _setup_property_notifications():
 			if not _target_object.property_list_changed.is_connected(_on_target_property_changed):
 				_target_object.property_list_changed.connect(_on_target_property_changed)
 
-func cleanup():
-	if _is_editing:
-		_stop_editing_without_editor_call()
-	if _sync_timer:
-		_sync_timer.queue_free()
-		_sync_timer = null
-	
-	# Disconnect signals
-	if is_instance_valid(_target_object):
-		if _target_object.has_signal("changed") and _target_object.changed.is_connected(_on_target_property_changed):
-			_target_object.changed.disconnect(_on_target_property_changed)
-		elif _target_object.has_signal("property_list_changed") and _target_object.property_list_changed.is_connected(_on_target_property_changed):
-			_target_object.property_list_changed.disconnect(_on_target_property_changed)
-	
-	_polygon_editor = null
+#func cleanup():
+	#print("prop_edit: cleanup")
+	#if _is_editing:
+		#_stop_editing_without_editor_call()
+	#if _sync_timer:
+		#_sync_timer.queue_free()
+		#_sync_timer = null
+	#
+	## Disconnect signals
+	#if is_instance_valid(_target_object):
+		#if _target_object.has_signal("changed") and _target_object.changed.is_connected(_on_target_property_changed):
+			#_target_object.changed.disconnect(_on_target_property_changed)
+		#elif _target_object.has_signal("property_list_changed") and _target_object.property_list_changed.is_connected(_on_target_property_changed):
+			#_target_object.property_list_changed.disconnect(_on_target_property_changed)
+	#
+	#_polygon_editor = null
 
 func _create_ui():
 	_edit_button = Button.new()

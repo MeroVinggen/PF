@@ -28,5 +28,4 @@ metadata/_custom_type_script = "uid://dsw8ahtan3evv"
 [node name="Pathfinder" type="Node2D" parent="."]
 position = Vector2(126, 120)
 script = ExtResource("4_wlawv")
-agent_polygon = PackedVector2Array(-25, -5, 5, -5, 5, 5, -5, 5)
 metadata/_custom_type_script = "uid://c0akywfx8v7xg"

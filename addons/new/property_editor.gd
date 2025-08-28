@@ -18,19 +18,19 @@ var _sync_timer: Timer
 
 var _suppress_external_monitoring: bool = false
 
-func _ready():
+func _ready() -> void:
 	# Force an update when the property editor is ready
 	call_deferred("_force_sync_check")
 
-func _force_sync_check():
+func _force_sync_check() -> void:
 	if is_instance_valid(_target_object):
 		var current_array: PackedVector2Array = _target_object.get(_property_name)
-		var current_hash = _hash_array(current_array)
+		var current_hash: int = _hash_array(current_array)
 		if current_hash != _last_known_hash:
 			_handle_external_array_change(current_array, current_hash)
 
 # Override update_property to catch when Godot updates the property
-func update_property():
+func update_property() -> void:
 	super.update_property()
 	call_deferred("_force_sync_check")
 	if _is_editing:
@@ -43,7 +43,7 @@ func update_property():
 			_sync_timer.queue_free()
 		_sync_timer = null
 
-func setup(polygon_editor: PolygonEditor, object: Object, prop_name: String):
+func setup(polygon_editor: PolygonEditor, object: Object, prop_name: String) -> void:
 	_polygon_editor = polygon_editor
 	_target_object = object
 	_property_name = prop_name
@@ -53,7 +53,7 @@ func setup(polygon_editor: PolygonEditor, object: Object, prop_name: String):
 	_setup_property_notifications()
 	_update_button_state()
 
-func _setup_property_notifications():
+func _setup_property_notifications() -> void:
 	# Try to connect to the target object's property change signals if available
 	if is_instance_valid(_target_object):
 		# Many Node types emit changed signal when properties are modified
@@ -65,13 +65,13 @@ func _setup_property_notifications():
 			if not _target_object.property_list_changed.is_connected(_on_target_property_changed):
 				_target_object.property_list_changed.connect(_on_target_property_changed)
 
-func _create_ui():
+func _create_ui() -> void:
 	_edit_button = Button.new()
 	_edit_button.pressed.connect(_on_edit_pressed)
 	add_child(_edit_button)
 	_update_button_text()
 
-func _setup_sync_monitoring():
+func _setup_sync_monitoring() -> void:
 	# Create a timer to check for external changes
 	_sync_timer = Timer.new()
 	_sync_timer.wait_time = 0.2  # 5Hz - reduced frequency
@@ -81,19 +81,19 @@ func _setup_sync_monitoring():
 	
 	# OPTIMIZED: Initialize last known state with hash
 	if is_instance_valid(_target_object):
-		var current_array = _target_object.get(_property_name)
+		var current_array: PackedVector2Array = _target_object.get(_property_name)
 		_last_known_hash = _hash_array(current_array)
 
 # OPTIMIZED: Fast hash-based array comparison
 func _hash_array(arr: PackedVector2Array) -> int:
-	var hash = arr.size()
-	for i in range(arr.size()):
-		var v = arr[i]
+	var hash: int = arr.size()
+	for i: int in range(arr.size()):
+		var v: Vector2 = arr[i]
 		# Simple but effective hash combining x, y coordinates with array index
 		hash = hash * 31 + int(v.x * 1000) + int(v.y * 1000) * 1009 + i * 97
 	return hash
 
-func _check_for_external_changes():
+func _check_for_external_changes() -> void:
 	# Don't check during suppressed periods
 	if _suppress_external_monitoring:
 		return
@@ -111,9 +111,9 @@ func _check_for_external_changes():
 		return
 	
 	# Verify property still exists
-	var property_list = _target_object.get_property_list()
-	var property_exists = false
-	for prop in property_list:
+	var property_list: Array[Dictionary] = _target_object.get_property_list()
+	var property_exists: bool = false
+	for prop: Dictionary in property_list:
 		if prop.name == _property_name and prop.type == TYPE_PACKED_VECTOR2_ARRAY:
 			property_exists = true
 			break
@@ -138,12 +138,12 @@ func _check_for_external_changes():
 		return
 	
 	# OPTIMIZED: Hash-based change detection
-	var current_hash = _hash_array(current_array)
+	var current_hash: int = _hash_array(current_array)
 	if current_hash != _last_known_hash:
 		print("External change detected - old hash: ", _last_known_hash, ", new hash: ", current_hash)
 		_handle_external_array_change(current_array, current_hash)
 
-func _handle_external_array_change(new_array: PackedVector2Array, new_hash: int):
+func _handle_external_array_change(new_array: PackedVector2Array, new_hash: int) -> void:
 	_last_known_hash = new_hash
 	
 	# ALWAYS update button text when array changes
@@ -161,7 +161,7 @@ func _handle_external_array_change(new_array: PackedVector2Array, new_hash: int)
 				_polygon_editor._polygon_data.vertices = new_array
 				_polygon_editor._request_overlay_update()
 
-func _update_button_text():
+func _update_button_text() -> void:
 	if not is_instance_valid(_target_object):
 		return
 	
@@ -172,7 +172,7 @@ func _update_button_text():
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
 	
 	if current_array.size() < 3:
-		var points_needed = 3 - current_array.size()
+		var points_needed: int = 3 - current_array.size()
 		if current_array.size() == 0:
 			_edit_button.text = "Add 3 Default Points"
 		else:
@@ -184,7 +184,7 @@ func _update_button_text():
 	
 	print("Button text updated to: ", _edit_button.text, " (array size: ", current_array.size(), ", is_editing: ", _is_editing, ")")
 
-func _on_edit_pressed():
+func _on_edit_pressed() -> void:
 	if not is_instance_valid(_target_object):
 		return
 	
@@ -197,19 +197,19 @@ func _on_edit_pressed():
 	else:
 		_start_editing()
 
-func _add_needed_points():
+func _add_needed_points() -> void:
 	if not is_instance_valid(_polygon_editor):
 		return
 	
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
-	var points_needed = 3 - current_array.size()
+	var points_needed: int = 3 - current_array.size()
 	
 	# OPTIMIZED: Create new array with pre-allocated size
-	var new_points = PackedVector2Array()
+	var new_points: PackedVector2Array = PackedVector2Array()
 	new_points.resize(3)
 	
 	# Copy existing points
-	for i in range(current_array.size()):
+	for i: int in range(current_array.size()):
 		new_points[i] = current_array[i]
 	
 	# Add points based on what we already have
@@ -221,17 +221,17 @@ func _add_needed_points():
 			new_points[2] = Vector2(-32.0, -32.0)
 		1:
 			# One existing point - add two more to form triangle
-			var existing_point = current_array[0]
+			var existing_point: Vector2 = current_array[0]
 			new_points[1] = existing_point + Vector2(64.0, 0.0)
 			new_points[2] = existing_point + Vector2(0.0, 64.0)
 		2:
 			# Two existing points - add one more to complete triangle
-			var p1 = current_array[0]
-			var p2 = current_array[1]
+			var p1: Vector2 = current_array[0]
+			var p2: Vector2 = current_array[1]
 			# Create third point to form a triangle (perpendicular to the line between p1 and p2)
-			var midpoint = (p1 + p2) * 0.5
-			var direction = (p2 - p1).normalized()
-			var perpendicular = Vector2(-direction.y, direction.x) * 32.0
+			var midpoint: Vector2 = (p1 + p2) * 0.5
+			var direction: Vector2 = (p2 - p1).normalized()
+			var perpendicular: Vector2 = Vector2(-direction.y, direction.x) * 32.0
 			new_points[2] = midpoint + perpendicular
 	
 	# Suppress external monitoring during the operation
@@ -241,7 +241,7 @@ func _add_needed_points():
 	_do_set_points(new_points)
 	_complete_point_addition()
 
-func _complete_point_addition():
+func _complete_point_addition() -> void:
 	# Update hash and resume monitoring
 	if is_instance_valid(_target_object):
 		var current_array: PackedVector2Array = _target_object.get(_property_name)
@@ -253,14 +253,14 @@ func _complete_point_addition():
 	# Start editing after adding points (this will properly handle multiple editors)
 	call_deferred("_start_editing")
 
-func _do_set_points(points: PackedVector2Array):
+func _do_set_points(points: PackedVector2Array) -> void:
 	_target_object.set(_property_name, points)
 	# Update hash immediately
 	_last_known_hash = _hash_array(points)
 	# Force inspector update
 	emit_changed(_property_name, points, "", false)
 
-func _start_editing():
+func _start_editing() -> void:
 	if not is_instance_valid(_polygon_editor):
 		return
 	
@@ -277,7 +277,7 @@ func _start_editing():
 	
 	print("Started editing ", _property_name, " on ", _target_object.name if _target_object.has_method("get_name") else str(_target_object))
 
-func _stop_editing():
+func _stop_editing() -> void:
 	if not is_instance_valid(_polygon_editor):
 		_stop_editing_without_editor_call()
 		return
@@ -285,7 +285,7 @@ func _stop_editing():
 	_polygon_editor.clear_current()
 	_stop_editing_without_editor_call()
 
-func _stop_editing_without_editor_call():
+func _stop_editing_without_editor_call() -> void:
 	_is_editing = false
 	
 	if is_instance_valid(_edit_button):
@@ -294,11 +294,11 @@ func _stop_editing_without_editor_call():
 		refresh_button_text()
 
 # Public method that can be called by PolygonEditor to notify this editor to stop
-func notify_stop_editing():
+func notify_stop_editing() -> void:
 	print("Property editor for ", _property_name, " notified to stop editing")
 	_stop_editing_without_editor_call()
 
-func notify_vertex_change(suppress_emit: bool = false):
+func notify_vertex_change(suppress_emit: bool = false) -> void:
 	if is_instance_valid(_target_object):
 		var current_array: PackedVector2Array = _target_object.get(_property_name)
 		
@@ -315,18 +315,18 @@ func notify_vertex_change(suppress_emit: bool = false):
 		# Re-enable monitoring after a short delay
 		call_deferred("_resume_external_monitoring")
 
-func _resume_external_monitoring():
+func _resume_external_monitoring() -> void:
 	_suppress_external_monitoring = false
 
-func force_inspector_update():
+func force_inspector_update() -> void:
 	if is_instance_valid(_target_object):
 		var current_array: PackedVector2Array = _target_object.get(_property_name)
 		_last_known_hash = _hash_array(current_array)
 		emit_changed(_property_name, current_array, "", false)
 		refresh_button_text()
 
-func _update_button_state():
-	var should_enable = _target_object and _target_object is CanvasItem
+func _update_button_state() -> void:
+	var should_enable: bool = _target_object and _target_object is CanvasItem
 	
 	# Performance: Only update if state changed
 	if _needs_button_update or should_enable != _last_button_state:
@@ -338,7 +338,7 @@ func _update_button_state():
 		else:
 			var current_array: PackedVector2Array = _target_object.get(_property_name)
 			if current_array.size() < 3:
-				var points_needed = 3 - current_array.size()
+				var points_needed: int = 3 - current_array.size()
 				if current_array.size() == 0:
 					_edit_button.tooltip_text = "Click to add 3 default points and start editing"
 				else:
@@ -350,18 +350,18 @@ func _update_button_state():
 		_needs_button_update = false
 
 # Connect to property change notifications if available
-func _on_target_property_changed():
+func _on_target_property_changed() -> void:
 	if is_instance_valid(_target_object):
 		var current_array: PackedVector2Array = _target_object.get(_property_name)
-		var current_hash = _hash_array(current_array)
+		var current_hash: int = _hash_array(current_array)
 		if current_hash != _last_known_hash:
 			_handle_external_array_change(current_array, current_hash)
 
 # PUBLIC METHOD: Called by PolygonEditor when vertices change
-func refresh_button_text():
+func refresh_button_text() -> void:
 	call_deferred("_update_button_text")
 
-func cleanup():
+func cleanup() -> void:
 	print("Property editor cleanup for: ", _property_name)
 	
 	# Stop editing first
@@ -383,7 +383,7 @@ func cleanup():
 	_property_name = ""
 	_edit_button = null
 
-func _disconnect_all_signals():
+func _disconnect_all_signals() -> void:
 	# Safely disconnect from target object
 	if is_instance_valid(_target_object):
 		if _target_object.has_signal("changed"):

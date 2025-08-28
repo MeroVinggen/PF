@@ -100,13 +100,11 @@ func _check_for_external_changes() -> void:
 	
 	# Enhanced object validation
 	if not is_instance_valid(_target_object):
-		print("PropertyEditor: Target object no longer valid")
 		_stop_editing_without_editor_call()
 		return
 	
 	# Check if object is still in the scene tree
 	if not _target_object.is_inside_tree():
-		print("PropertyEditor: Target object no longer in scene tree")
 		_stop_editing_without_editor_call()
 		return
 	
@@ -119,28 +117,24 @@ func _check_for_external_changes() -> void:
 			break
 	
 	if not property_exists:
-		print("PropertyEditor: Property no longer exists or changed type")
 		_stop_editing_without_editor_call()
 		return
 	
 	# Check if we think we're editing but the polygon editor is not editing us
 	if _is_editing and is_instance_valid(_polygon_editor):
 		if _polygon_editor._current_property_editor != self:
-			print("Detected that another editor took over - stopping editing")
 			notify_stop_editing()
 			return
 	
 	# Safe property access
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
 	if current_array == null:
-		print("PropertyEditor: Cannot access property value")
 		_stop_editing_without_editor_call()
 		return
 	
 	# OPTIMIZED: Hash-based change detection
 	var current_hash: int = _hash_array(current_array)
 	if current_hash != _last_known_hash:
-		print("External change detected - old hash: ", _last_known_hash, ", new hash: ", current_hash)
 		_handle_external_array_change(current_array, current_hash)
 
 func _handle_external_array_change(new_array: PackedVector2Array, new_hash: int) -> void:
@@ -153,7 +147,6 @@ func _handle_external_array_change(new_array: PackedVector2Array, new_hash: int)
 	if _is_editing:
 		if new_array.size() < 3:
 			# Array has been reduced below minimum - stop editing
-			print("Array reduced below 3 points - stopping editing")
 			_stop_editing()
 		else:
 			# OPTIMIZED: Direct assignment instead of duplicate
@@ -181,8 +174,6 @@ func _update_button_text() -> void:
 		_edit_button.text = "Stop Editing"
 	else:
 		_edit_button.text = "Edit in 2D View"
-	
-	print("Button text updated to: ", _edit_button.text, " (array size: ", current_array.size(), ", is_editing: ", _is_editing, ")")
 
 func _on_edit_pressed() -> void:
 	if not is_instance_valid(_target_object):
@@ -274,8 +265,6 @@ func _start_editing() -> void:
 	
 	_edit_button.text = "Stop Editing"
 	_edit_button.modulate = Color.GREEN
-	
-	print("Started editing ", _property_name, " on ", _target_object.name if _target_object.has_method("get_name") else str(_target_object))
 
 func _stop_editing() -> void:
 	if not is_instance_valid(_polygon_editor):
@@ -295,7 +284,6 @@ func _stop_editing_without_editor_call() -> void:
 
 # Public method that can be called by PolygonEditor to notify this editor to stop
 func notify_stop_editing() -> void:
-	print("Property editor for ", _property_name, " notified to stop editing")
 	_stop_editing_without_editor_call()
 
 func notify_vertex_change(suppress_emit: bool = false) -> void:
@@ -362,8 +350,6 @@ func refresh_button_text() -> void:
 	call_deferred("_update_button_text")
 
 func cleanup() -> void:
-	print("Property editor cleanup for: ", _property_name)
-	
 	# Stop editing first
 	if _is_editing:
 		_stop_editing_without_editor_call()

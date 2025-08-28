@@ -3,13 +3,13 @@ class_name PolygonEditor
 extends RefCounted
 
 # Visual constants
-const CURSOR_THRESHOLD: float = 6.0
-const VERTEX_RADIUS: float = 6.0
-const VERTEX_EXCLUSION_RADIUS: float = 20.0  # 2x vertex radius - no ghost hints near existing vertices
-const VERTEX_COLOR: Color = Color(0.0, 0.5, 1.0, 0.5)
-const VERTEX_ACTIVE_COLOR: Color = Color(1.0, 1.0, 1.0)
-const VERTEX_NEW_COLOR: Color = Color(0.0, 1.0, 1.0, 0.5)
-const POLYGON_COLOR: Color = Color(0.0, 0.5, 1.0, 0.2)
+const CURSOR_THRESHOLD := 6.0
+const VERTEX_RADIUS := 6.0
+const VERTEX_EXCLUSION_RADIUS := 20.0  # 2x vertex radius - no ghost hints near existing vertices
+const VERTEX_COLOR := Color(0.0, 0.5, 1.0, 0.5)
+const VERTEX_ACTIVE_COLOR := Color(1.0, 1.0, 1.0)
+const VERTEX_NEW_COLOR := Color(0.0, 1.0, 1.0, 0.5)
+const POLYGON_COLOR := Color(0.0, 0.5, 1.0, 0.2)
 
 # Core state
 var _plugin: EditorPlugin
@@ -52,8 +52,6 @@ func setup(plugin: EditorPlugin) -> void:
 	_plugin.add_child(_sync_timer)
 
 func cleanup() -> void:
-	print("cleanup")
-	
 	# Safe timer cleanup
 	if _sync_timer:
 		if _sync_timer.is_inside_tree():
@@ -67,7 +65,6 @@ func cleanup() -> void:
 	_polygon_data = null
 	_plugin = null
 
-
 func _on_timer_tick() -> void:
 	if not _is_editing_valid():
 		return
@@ -75,7 +72,6 @@ func _on_timer_tick() -> void:
 	# Enhanced selection and scene checking
 	var selection: EditorSelection = EditorInterface.get_selection()
 	if not selection:
-		print("PolygonEditor: Selection no longer available")
 		call_deferred("clear_current")
 		return
 	
@@ -89,21 +85,18 @@ func _on_timer_tick() -> void:
 			break
 	
 	if not our_object_selected:
-		print("PolygonEditor: Node lost focus or removed from scene, stopping editing")
 		call_deferred("clear_current")
 		return
 	
 	# Verify current scene hasn't changed
 	var current_scene: Node = EditorInterface.get_edited_scene_root()
 	if not current_scene:
-		print("PolygonEditor: Edited scene root is no longer available")
 		call_deferred("clear_current")
 		return
 	
 	# Additional safety: check if we can still access the property
 	var current_array: PackedVector2Array = _current_object.get(_current_property)
 	if current_array == null:
-		print("PolygonEditor: Cannot access property anymore")
 		call_deferred("clear_current")
 		return
 	
@@ -111,11 +104,8 @@ func _on_timer_tick() -> void:
 	var current_hash: int = _hash_array(current_array)
 	
 	if current_hash != _last_sync_hash:
-		print("PolygonEditor detected external change")
-		
 		# If array is too small, we should stop editing
 		if current_array.size() < 3:
-			print("Array reduced below 3 points - clearing current editing")
 			call_deferred("clear_current")
 			return
 		
@@ -123,7 +113,6 @@ func _on_timer_tick() -> void:
 		_polygon_data.vertices = current_array
 		_last_sync_hash = current_hash
 		_request_overlay_update()
-
 
 # OPTIMIZED: Fast hash-based array comparison
 func _hash_array(arr: PackedVector2Array) -> int:
@@ -135,12 +124,8 @@ func _hash_array(arr: PackedVector2Array) -> int:
 	return hash
 
 func set_current(object: Object, property: String, property_editor: Vector2ArrayPropertyEditor = null) -> void:
-	print("set_current")
-	print("Setting current: ", object, " property: ", property)
-	
 	# If we're switching to a different property editor, notify the old one to stop
 	if _current_property_editor and _current_property_editor != property_editor and is_instance_valid(_current_property_editor):
-		print("Notifying previous property editor to stop editing")
 		_current_property_editor.notify_stop_editing()
 	
 	# Clear previous state
@@ -163,7 +148,7 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 		
 		# Force editor selection - this ensures focus
 		EditorInterface.get_selection().clear()
-		EditorInterface.get_selection().add_node(object as Node)
+		EditorInterface.get_selection().add_node(object)
 		
 		# Initialize focus tracking
 		var selection: EditorSelection = EditorInterface.get_selection()
@@ -171,7 +156,6 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 	_request_overlay_update()
 
 func clear_current() -> void:
-	print("clear_current")
 	# Stop sync monitoring
 	if _sync_timer:
 		_sync_timer.stop()
@@ -215,20 +199,18 @@ func draw_overlay(overlay: Control) -> void:
 			break
 	
 	if not our_object_selected:
-		print("PolygonEditor: Object no longer selected or in scene tree")
 		call_deferred("clear_current")
 		return
 	
 	# Verify the current scene hasn't changed
 	var current_scene: Node = EditorInterface.get_edited_scene_root()
 	if not current_scene:
-		print("PolygonEditor: No edited scene root")
 		call_deferred("clear_current")
 		return
 	
 	# Check if our object is still a descendant of the current scene
 	if not _current_object.is_ancestor_of(current_scene) and _current_object != current_scene:
-		var node: Node = _current_object as Node
+		var node: Node = _current_object
 		var is_descendant: bool = false
 		while node:
 			if node == current_scene:
@@ -237,7 +219,6 @@ func draw_overlay(overlay: Control) -> void:
 			node = node.get_parent()
 		
 		if not is_descendant:
-			print("PolygonEditor: Object is no longer part of the current scene")
 			call_deferred("clear_current")
 			return
 	
@@ -280,23 +261,21 @@ func handle_input(event: InputEvent) -> bool:
 			break
 	
 	if not our_object_selected:
-		print("PolygonEditor: Object no longer selected during input - clearing")
 		call_deferred("clear_current")
 		return false
 	
 	# Verify the current scene is still valid
 	var current_scene: Node = EditorInterface.get_edited_scene_root()
-	if not current_scene or not (_current_object as Node).is_inside_tree():
-		print("PolygonEditor: Scene changed or object removed during input - clearing")
+	if not current_scene or not _current_object.is_inside_tree():
 		call_deferred("clear_current")
 		return false
 	
 	var handled: bool = false
 	
 	if event is InputEventMouseButton:
-		handled = _handle_mouse_button(event as InputEventMouseButton)
+		handled = _handle_mouse_button(event)
 	elif event is InputEventMouseMotion:
-		handled = _handle_mouse_motion(event as InputEventMouseMotion)
+		handled = _handle_mouse_motion(event)
 	
 	if handled:
 		_request_overlay_update()
@@ -310,19 +289,16 @@ func _is_editing_valid() -> bool:
 	
 	# Check if object is still valid
 	if not is_instance_valid(_current_object):
-		print("PolygonEditor: Current object is no longer valid")
 		call_deferred("clear_current")
 		return false
 	
 	# Check if object is still a CanvasItem
 	if not _current_object is CanvasItem:
-		print("PolygonEditor: Current object is no longer a CanvasItem")
 		call_deferred("clear_current")
 		return false
 	
 	# Check if the property still exists on the object
 	if not _current_object.has_method("get") or not _current_object.has_method("set"):
-		print("PolygonEditor: Current object no longer supports property access")
 		call_deferred("clear_current")
 		return false
 	
@@ -335,14 +311,12 @@ func _is_editing_valid() -> bool:
 			break
 	
 	if not property_exists:
-		print("PolygonEditor: Property '", _current_property, "' no longer exists or wrong type")
 		call_deferred("clear_current")
 		return false
 	
 	# Additional check: verify we can actually get the property value
-	var test_value: Variant = _current_object.get(_current_property)
+	var test_value: PackedVector2Array = _current_object.get(_current_property)
 	if not test_value is PackedVector2Array:
-		print("PolygonEditor: Property value is not a PackedVector2Array")
 		call_deferred("clear_current")
 		return false
 	
@@ -404,8 +378,8 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> bool:
 		# Only show ghost vertex if we have at least 3 vertices (can form a polygon)
 		if _active_vertex_index == -1 and _polygon_data.vertices.size() >= 3:
 			var add_result: Dictionary = _get_active_side_optimized()
-			_can_add_at = add_result.index as int
-			_ghost_vertex_pos = add_result.position as Vector2
+			_can_add_at = add_result.index
+			_ghost_vertex_pos = add_result.position
 		else:
 			_can_add_at = -1
 		
@@ -559,7 +533,6 @@ func _do_remove_vertex(index: int) -> void:
 	
 	# Check if we should stop editing due to insufficient points
 	if _polygon_data.vertices.size() < 3:
-		print("Polygon reduced to less than 3 vertices - clearing current editing")
 		call_deferred("clear_current")
 
 func _do_update_vertex(index: int, vertex: Vector2) -> void:
@@ -590,7 +563,7 @@ class PolygonData:
 	var vertices: PackedVector2Array = PackedVector2Array()
 	
 	func set_from_object(object: Object, property: String) -> void:
-		vertices = object.get(property) as PackedVector2Array
+		vertices = object.get(property)
 		# Remove the auto-initialization - let the property editor handle this
 	
 	func clear() -> void:

@@ -9,6 +9,7 @@ func setup(polygon_editor: PolygonEditor):
 	_polygon_editor = polygon_editor
 
 func cleanup():
+	print("inspector cleanup")
 	for editor in _property_editors:
 		if is_instance_valid(editor):
 			editor.cleanup()

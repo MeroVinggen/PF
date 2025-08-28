@@ -63,6 +63,7 @@ func setup(plugin: EditorPlugin):
 	_plugin.add_child(_focus_check_timer)
 
 func cleanup():
+	print("cleanup")
 	if _sync_timer and _sync_timer.is_inside_tree():
 		_sync_timer.queue_free()
 		_sync_timer = null
@@ -130,6 +131,7 @@ func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
 	return true
 
 func set_current(object: Object, property: String, property_editor: Vector2ArrayPropertyEditor = null):
+	print("set_current")
 	print("Setting current: ", object, " property: ", property)
 	
 	# If we're switching to a different property editor, notify the old one to stop
@@ -166,6 +168,7 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 	_request_overlay_update()
 
 func clear_current():
+	print("clear_current")
 	# Stop sync monitoring
 	if _sync_timer:
 		_sync_timer.stop()
@@ -187,6 +190,7 @@ func clear_current():
 	_request_overlay_update()
 
 func handles(object) -> bool:
+	print("handles: ", _current_object != null and object == _current_object)
 	return _current_object != null and object == _current_object
 
 func edit(object):
@@ -194,6 +198,7 @@ func edit(object):
 	pass
 
 func draw_overlay(overlay: Control):
+	print("draw_overlay")
 	# CRITICAL: Only draw if we have a valid current object and it's still selected
 	if not _is_editing_valid():
 		return

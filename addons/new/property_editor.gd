@@ -12,8 +12,8 @@ var _is_editing: bool = false
 var _last_button_state: bool = false
 var _needs_button_update: bool = true
 
-# Two-way sync: Track last known array state
-var _last_known_array: PackedVector2Array = PackedVector2Array()
+# OPTIMIZED: Hash-based array change detection
+var _last_known_hash: int = 0
 var _sync_timer: Timer
 
 func _ready():
@@ -23,8 +23,9 @@ func _ready():
 func _force_sync_check():
 	if is_instance_valid(_target_object):
 		var current_array: PackedVector2Array = _target_object.get(_property_name)
-		if not _arrays_equal(current_array, _last_known_array):
-			_handle_external_array_change(current_array)
+		var current_hash = _hash_array(current_array)
+		if current_hash != _last_known_hash:
+			_handle_external_array_change(current_array, current_hash)
 
 # Override update_property to catch when Godot updates the property
 func update_property():
@@ -57,7 +58,6 @@ func _setup_property_notifications():
 			if not _target_object.property_list_changed.is_connected(_on_target_property_changed):
 				_target_object.property_list_changed.connect(_on_target_property_changed)
 
-
 func _create_ui():
 	_edit_button = Button.new()
 	_edit_button.pressed.connect(_on_edit_pressed)
@@ -72,9 +72,19 @@ func _setup_sync_monitoring():
 	_sync_timer.timeout.connect(_check_for_external_changes)
 	add_child(_sync_timer)
 	
-	# Initialize last known state
+	# OPTIMIZED: Initialize last known state with hash
 	if is_instance_valid(_target_object):
-		_last_known_array = _target_object.get(_property_name).duplicate()
+		var current_array = _target_object.get(_property_name)
+		_last_known_hash = _hash_array(current_array)
+
+# OPTIMIZED: Fast hash-based array comparison
+func _hash_array(arr: PackedVector2Array) -> int:
+	var hash = arr.size()
+	for i in range(arr.size()):
+		var v = arr[i]
+		# Simple but effective hash combining x, y coordinates with array index
+		hash = hash * 31 + int(v.x * 1000) + int(v.y * 1000) * 1009 + i * 97
+	return hash
 
 func _check_for_external_changes():
 	if not is_instance_valid(_target_object):
@@ -89,23 +99,14 @@ func _check_for_external_changes():
 	
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
 	
-	# Check if array has changed externally (not by our editor)
-	if not _arrays_equal(current_array, _last_known_array):
-		print("External change detected - old size: ", _last_known_array.size(), ", new size: ", current_array.size())
-		_handle_external_array_change(current_array)
+	# OPTIMIZED: Hash-based change detection
+	var current_hash = _hash_array(current_array)
+	if current_hash != _last_known_hash:
+		print("External change detected - old hash: ", _last_known_hash, ", new hash: ", current_hash)
+		_handle_external_array_change(current_array, current_hash)
 
-func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
-	if a.size() != b.size():
-		return false
-	
-	for i in range(a.size()):
-		if a[i] != b[i]:
-			return false
-	
-	return true
-
-func _handle_external_array_change(new_array: PackedVector2Array):
-	_last_known_array = new_array.duplicate()
+func _handle_external_array_change(new_array: PackedVector2Array, new_hash: int):
+	_last_known_hash = new_hash
 	
 	# ALWAYS update button text when array changes
 	refresh_button_text()
@@ -117,9 +118,9 @@ func _handle_external_array_change(new_array: PackedVector2Array):
 			print("Array reduced below 3 points - stopping editing")
 			_stop_editing()
 		else:
-			# Array still valid - sync with polygon editor
+			# OPTIMIZED: Direct assignment instead of duplicate
 			if is_instance_valid(_polygon_editor):
-				_polygon_editor._polygon_data.vertices = new_array.duplicate()
+				_polygon_editor._polygon_data.vertices = new_array
 				_polygon_editor._request_overlay_update()
 
 func _update_button_text():
@@ -165,21 +166,26 @@ func _add_needed_points():
 	var current_array: PackedVector2Array = _target_object.get(_property_name)
 	var points_needed = 3 - current_array.size()
 	
-	# Create new array with existing points plus needed points
-	var new_points = PackedVector2Array(current_array)
+	# OPTIMIZED: Create new array with pre-allocated size
+	var new_points = PackedVector2Array()
+	new_points.resize(3)
+	
+	# Copy existing points
+	for i in range(current_array.size()):
+		new_points[i] = current_array[i]
 	
 	# Add points based on what we already have
 	match current_array.size():
 		0:
 			# No existing points - add default triangle
-			new_points.append(Vector2(32.0, 0.0))
-			new_points.append(Vector2(-32.0, 32.0))
-			new_points.append(Vector2(-32.0, -32.0))
+			new_points[0] = Vector2(32.0, 0.0)
+			new_points[1] = Vector2(-32.0, 32.0)
+			new_points[2] = Vector2(-32.0, -32.0)
 		1:
 			# One existing point - add two more to form triangle
 			var existing_point = current_array[0]
-			new_points.append(existing_point + Vector2(64.0, 0.0))
-			new_points.append(existing_point + Vector2(0.0, 64.0))
+			new_points[1] = existing_point + Vector2(64.0, 0.0)
+			new_points[2] = existing_point + Vector2(0.0, 64.0)
 		2:
 			# Two existing points - add one more to complete triangle
 			var p1 = current_array[0]
@@ -188,7 +194,7 @@ func _add_needed_points():
 			var midpoint = (p1 + p2) * 0.5
 			var direction = (p2 - p1).normalized()
 			var perpendicular = Vector2(-direction.y, direction.x) * 32.0
-			new_points.append(midpoint + perpendicular)
+			new_points[2] = midpoint + perpendicular
 	
 	# Use undo/redo for the operation
 	var undo = _polygon_editor._plugin.get_undo_redo()
@@ -202,7 +208,7 @@ func _add_needed_points():
 
 func _do_set_points(points: PackedVector2Array):
 	_target_object.set(_property_name, points)
-	_last_known_array = points.duplicate()  # Update our tracking
+	_last_known_hash = _hash_array(points)  # Update our tracking
 	# FORCE button text update immediately
 	refresh_button_text()
 
@@ -272,8 +278,9 @@ func _update_button_state():
 func _on_target_property_changed():
 	if is_instance_valid(_target_object):
 		var current_array: PackedVector2Array = _target_object.get(_property_name)
-		if not _arrays_equal(current_array, _last_known_array):
-			_handle_external_array_change(current_array)
+		var current_hash = _hash_array(current_array)
+		if current_hash != _last_known_hash:
+			_handle_external_array_change(current_array, current_hash)
 
 # PUBLIC METHOD: Called by PolygonEditor when vertices change
 func refresh_button_text():

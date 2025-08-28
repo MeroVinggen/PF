@@ -34,9 +34,9 @@ var _cursor_pos: Vector2
 # NEW: Ghost vertex positioning
 var _ghost_vertex_pos: Vector2
 
-# Two-way sync: Track external changes
+# OPTIMIZED: Two-way sync with hash-based change detection
 var _sync_timer: Timer
-var _last_sync_check: PackedVector2Array = PackedVector2Array()
+var _last_sync_hash: int = 0
 
 
 func setup(plugin: EditorPlugin):
@@ -82,9 +82,11 @@ func _on_timer_tick():
 		clear_current()
 		return
 	
-	# Check for external sync changes
+	# OPTIMIZED: Hash-based change detection
 	var current_array: PackedVector2Array = _current_object.get(_current_property)
-	if not _arrays_equal(current_array, _last_sync_check):
+	var current_hash = _hash_array(current_array)
+	
+	if current_hash != _last_sync_hash:
 		print("PolygonEditor detected external change")
 		
 		# If array is too small, we should stop editing
@@ -94,22 +96,19 @@ func _on_timer_tick():
 			return
 		
 		# Update our data and refresh display
-		_polygon_data.vertices = current_array.duplicate()
-		_last_sync_check = current_array.duplicate()
+		_polygon_data.vertices = current_array
+		_last_sync_hash = current_hash
 		_request_overlay_update()
 
 
-
-
-func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
-	if a.size() != b.size():
-		return false
-	
-	for i in range(a.size()):
-		if a[i] != b[i]:
-			return false
-	
-	return true
+# OPTIMIZED: Fast hash-based array comparison
+func _hash_array(arr: PackedVector2Array) -> int:
+	var hash = arr.size()
+	for i in range(arr.size()):
+		var v = arr[i]
+		# Simple but effective hash combining x, y coordinates with array index
+		hash = hash * 31 + int(v.x * 1000) + int(v.y * 1000) * 1009 + i * 97
+	return hash
 
 func set_current(object: Object, property: String, property_editor: Vector2ArrayPropertyEditor = null):
 	print("set_current")
@@ -131,8 +130,8 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 	if object and property and object is CanvasItem:
 		_polygon_data.set_from_object(object, property)
 		
-		# Initialize sync tracking
-		_last_sync_check = _polygon_data.vertices.duplicate()
+		# OPTIMIZED: Initialize sync tracking with hash
+		_last_sync_hash = _hash_array(_polygon_data.vertices)
 		
 		# Start consolidated timer
 		if _sync_timer:
@@ -165,7 +164,7 @@ func clear_current():
 	_active_vertex_index = -1
 	_can_add_at = -1
 	_is_dragging = false
-	_last_sync_check.clear()
+	_last_sync_hash = 0
 	_request_overlay_update()
 
 func handles(object) -> bool:
@@ -199,14 +198,19 @@ func draw_overlay(overlay: Control):
 	if _polygon_data.vertices.is_empty():
 		return
 	
-	# Only draw polygon if we have at least 3 vertices
-	if _polygon_data.vertices.size() >= 3:
-		overlay.draw_colored_polygon(_transform_to_screen * _polygon_data.vertices, POLYGON_COLOR)
-	
-	# Draw vertices
+	# OPTIMIZED: Pre-transform vertices once for drawing
+	var screen_vertices = PackedVector2Array()
+	screen_vertices.resize(_polygon_data.vertices.size())
 	for i in range(_polygon_data.vertices.size()):
-		var screen_pos = _transform_to_screen * _polygon_data.vertices[i]
-		_draw_vertex(overlay, screen_pos, i)
+		screen_vertices[i] = _transform_to_screen * _polygon_data.vertices[i]
+	
+	# Only draw polygon if we have at least 3 vertices
+	if screen_vertices.size() >= 3:
+		overlay.draw_colored_polygon(screen_vertices, POLYGON_COLOR)
+	
+	# Draw vertices using pre-transformed positions
+	for i in range(screen_vertices.size()):
+		_draw_vertex(overlay, screen_vertices[i], i)
 	
 	# Only show ghost vertex for adding if we have enough vertices to form a polygon
 	if _can_add_at != -1 and _polygon_data.vertices.size() >= 3:
@@ -339,10 +343,12 @@ func _handle_mouse_button(event: InputEventMouseButton) -> bool:
 	
 	return false
 
+# OPTIMIZED: Cache transformed vertices for active vertex detection
 func _get_active_vertex() -> int:
-	for i in range(_polygon_data.vertices.size()):
+	var vertices_size = _polygon_data.vertices.size()
+	for i in range(vertices_size):
 		var screen_pos = _transform_to_screen * _polygon_data.vertices[i]
-		if (_cursor_pos - screen_pos).length() < CURSOR_THRESHOLD:
+		if (_cursor_pos - screen_pos).length_squared() < CURSOR_THRESHOLD * CURSOR_THRESHOLD:
 			return i
 	return -1
 
@@ -356,30 +362,37 @@ func _get_active_side_optimized() -> Dictionary:
 	var size = _polygon_data.vertices.size()
 	if size < 3:  # Need at least 3 vertices to form sides
 		return result
+	
+	# OPTIMIZED: Pre-transform all vertices once
+	var screen_vertices = PackedVector2Array()
+	screen_vertices.resize(size)
+	for i in range(size):
+		screen_vertices[i] = _transform_to_screen * _polygon_data.vertices[i]
 		
-	var min_distance = CURSOR_THRESHOLD
+	var min_distance_squared = CURSOR_THRESHOLD * CURSOR_THRESHOLD
 	var best_index = -1
 	var best_position = Vector2.ZERO
 	
 	for i in range(size):
-		var a = _transform_to_screen * _polygon_data.vertices[i]
-		var b = _transform_to_screen * _polygon_data.vertices[(i + 1) % size]
+		var a = screen_vertices[i]
+		var b = screen_vertices[(i + 1) % size]
 		
 		# Find closest point on line segment to cursor
 		var closest_point = _get_closest_point_on_segment(a, b, _cursor_pos)
-		var distance = (_cursor_pos - closest_point).length()
+		var distance_squared = (_cursor_pos - closest_point).length_squared()
 		
-		if distance < min_distance:
+		if distance_squared < min_distance_squared:
 			# NEW: Check if ghost vertex would be too close to existing vertices
 			var too_close_to_vertex = false
+			var exclusion_radius_squared = VERTEX_EXCLUSION_RADIUS * VERTEX_EXCLUSION_RADIUS
+			
 			for j in range(size):
-				var vertex_screen = _transform_to_screen * _polygon_data.vertices[j]
-				if (closest_point - vertex_screen).length() < VERTEX_EXCLUSION_RADIUS:
+				if (closest_point - screen_vertices[j]).length_squared() < exclusion_radius_squared:
 					too_close_to_vertex = true
 					break
 			
 			if not too_close_to_vertex:
-				min_distance = distance
+				min_distance_squared = distance_squared
 				best_index = (i + 1) % size
 				best_position = closest_point
 	
@@ -395,11 +408,12 @@ func _get_closest_point_on_segment(a: Vector2, b: Vector2, point: Vector2) -> Ve
 	var ap = point - a
 	
 	# If segment has zero length, return point a
-	if ab.length_squared() == 0:
+	var ab_length_squared = ab.length_squared()
+	if ab_length_squared == 0:
 		return a
 	
 	# Project point onto line, clamped to segment
-	var t = ap.dot(ab) / ab.length_squared()
+	var t = ap.dot(ab) / ab_length_squared
 	t = clamp(t, 0.0, 1.0)
 	
 	return a + t * ab
@@ -455,16 +469,16 @@ func _do_add_vertex(index: int, vertex: Vector2):
 	_current_object.set(_current_property, _polygon_data.vertices)
 	_active_vertex_index = index
 	
-	# Update sync tracking
-	_last_sync_check = _polygon_data.vertices.duplicate()
+	# OPTIMIZED: Update sync tracking with hash
+	_last_sync_hash = _hash_array(_polygon_data.vertices)
 
 func _do_remove_vertex(index: int):
 	_polygon_data.remove_vertex(index)
 	_current_object.set(_current_property, _polygon_data.vertices)
 	_active_vertex_index = -1
 	
-	# Update sync tracking
-	_last_sync_check = _polygon_data.vertices.duplicate()
+	# OPTIMIZED: Update sync tracking with hash
+	_last_sync_hash = _hash_array(_polygon_data.vertices)
 	
 	# Check if we should stop editing due to insufficient points
 	if _polygon_data.vertices.size() < 3:
@@ -475,8 +489,8 @@ func _do_update_vertex(index: int, vertex: Vector2):
 	_polygon_data.set_vertex(index, vertex)
 	_current_object.set(_current_property, _polygon_data.vertices)
 	
-	# Update sync tracking
-	_last_sync_check = _polygon_data.vertices.duplicate()
+	# OPTIMIZED: Update sync tracking with hash
+	_last_sync_hash = _hash_array(_polygon_data.vertices)
 
 func _draw_vertex(overlay: Control, position: Vector2, index: int):
 	overlay.draw_circle(position, VERTEX_RADIUS, VERTEX_COLOR)

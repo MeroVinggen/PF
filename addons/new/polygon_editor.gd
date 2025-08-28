@@ -38,9 +38,6 @@ var _ghost_vertex_pos: Vector2
 var _sync_timer: Timer
 var _last_sync_check: PackedVector2Array = PackedVector2Array()
 
-## NEW: Focus tracking
-#var _focus_check_timer: Timer
-#var _last_selected_nodes: Array[Node] = []
 
 func setup(plugin: EditorPlugin):
 	_plugin = plugin
@@ -147,7 +144,6 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 		
 		# Initialize focus tracking
 		var selection = EditorInterface.get_selection()
-		#_last_selected_nodes = selection.get_selected_nodes().duplicate()
 	
 	_request_overlay_update()
 
@@ -170,12 +166,9 @@ func clear_current():
 	_can_add_at = -1
 	_is_dragging = false
 	_last_sync_check.clear()
-	#_last_selected_nodes.clear()
 	_request_overlay_update()
 
 func handles(object) -> bool:
-	print("handles: ", _current_object)
-	print("handles: ", _current_object != null and object == _current_object)
 	return _current_object != null and object == _current_object
 
 func edit(object):

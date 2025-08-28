@@ -35,7 +35,6 @@ func _has_main_screen():
 	return false
 
 func _handles(object):
-	#return true
 	return _polygon_editor.handles(object) if _polygon_editor else false
 
 func _edit(object):
@@ -43,7 +42,7 @@ func _edit(object):
 		_polygon_editor.edit(object)
 
 func _forward_canvas_draw_over_viewport(overlay: Control):
-	if _polygon_editor:
+	if _polygon_editor and _inspector_plugin._property_editors.any(func (property_editor: Vector2ArrayPropertyEditor) -> bool: return property_editor._is_editing):
 		_polygon_editor.draw_overlay(overlay)
 
 func _forward_canvas_gui_input(event):

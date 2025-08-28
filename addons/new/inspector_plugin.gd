@@ -35,3 +35,7 @@ func _parse_property(object: Object, type: Variant.Type, name: String, hint_type
 
 func _on_property_editor_removed(editor: Vector2ArrayPropertyEditor):
 	_property_editors.erase(editor)
+
+
+func _is_editing() -> bool:
+	return _property_editors.any(func (property_editor: Vector2ArrayPropertyEditor) -> bool: return property_editor._is_editing)

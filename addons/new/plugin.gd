@@ -42,7 +42,7 @@ func _edit(object):
 		_polygon_editor.edit(object)
 
 func _forward_canvas_draw_over_viewport(overlay: Control):
-	if _polygon_editor and _inspector_plugin._property_editors.any(func (property_editor: Vector2ArrayPropertyEditor) -> bool: return property_editor._is_editing):
+	if _polygon_editor and _inspector_plugin._is_editing():
 		_polygon_editor.draw_overlay(overlay)
 
 func _forward_canvas_gui_input(event):

@@ -81,10 +81,10 @@ func _create_ui():
 	_update_button_text()
 
 func _setup_sync_monitoring():
-	# Create a timer to periodically check for external changes
+	# Create a timer to check for external changes
 	_sync_timer = Timer.new()
-	_sync_timer.wait_time = 0.2  # Check 5 times per second (less frequent when not editing)
-	_sync_timer.autostart = true  # Always start monitoring
+	_sync_timer.wait_time = 0.2  # 5Hz - reduced frequency
+	_sync_timer.autostart = true
 	_sync_timer.timeout.connect(_check_for_external_changes)
 	add_child(_sync_timer)
 	
@@ -234,10 +234,6 @@ func _start_editing():
 	_is_editing = true
 	_polygon_editor.set_current(_target_object, _property_name, self)
 	
-	# Increase monitoring frequency while editing
-	if _sync_timer:
-		_sync_timer.wait_time = 0.05  # Check 20 times per second when editing
-	
 	_edit_button.text = "Stop Editing"
 	_edit_button.modulate = Color.GREEN
 	
@@ -253,10 +249,6 @@ func _stop_editing():
 
 func _stop_editing_without_editor_call():
 	_is_editing = false
-	
-	# Reduce monitoring frequency when not editing
-	if _sync_timer:
-		_sync_timer.wait_time = 0.2  # Back to slower polling
 	
 	if is_instance_valid(_edit_button):
 		_edit_button.modulate = Color.WHITE

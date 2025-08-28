@@ -38,29 +38,22 @@ var _ghost_vertex_pos: Vector2
 var _sync_timer: Timer
 var _last_sync_check: PackedVector2Array = PackedVector2Array()
 
-# NEW: Focus tracking
-var _focus_check_timer: Timer
-var _last_selected_nodes: Array[Node] = []
+## NEW: Focus tracking
+#var _focus_check_timer: Timer
+#var _last_selected_nodes: Array[Node] = []
 
 func setup(plugin: EditorPlugin):
 	_plugin = plugin
 	_polygon_data = PolygonData.new()
 	
-	# Setup sync monitoring timer
+	# Setup single consolidated timer
 	_sync_timer = Timer.new()
-	_sync_timer.wait_time = 0.05  # Check 20 times per second when editing
+	_sync_timer.wait_time = 0.1  # 10Hz - balanced frequency
 	_sync_timer.autostart = false
-	_sync_timer.timeout.connect(_check_for_external_sync)
+	_sync_timer.timeout.connect(_on_timer_tick)
 	
-	# Setup focus tracking timer
-	#_focus_check_timer = Timer.new()
-	#_focus_check_timer.wait_time = 0.1  # Check 10 times per second
-	#_focus_check_timer.autostart = true
-	#_focus_check_timer.timeout.connect(_check_selection_focus)
-	
-	# Add timers to plugin so they get cleaned up properly
+	# Add timer to plugin so it gets cleaned up properly
 	_plugin.add_child(_sync_timer)
-	#_plugin.add_child(_focus_check_timer)
 
 func cleanup():
 	print("cleanup")
@@ -68,45 +61,32 @@ func cleanup():
 		_sync_timer.queue_free()
 		_sync_timer = null
 	
-	if _focus_check_timer and _focus_check_timer.is_inside_tree():
-		_focus_check_timer.queue_free()
-		_focus_check_timer = null
-	
 	clear_current()
 	_polygon_data = null
 	_plugin = null
 
-#func _check_selection_focus():
-	#print("_check_selection_focus")
-	#if not _is_editing_valid():
-		#return
-	#
-	#var selection = EditorInterface.get_selection()
-	#var selected_nodes = selection.get_selected_nodes()
-	#
-	## Check if our current object is still selected
-	#var our_object_selected = false
-	#for node in selected_nodes:
-		#if node == _current_object:
-			#our_object_selected = true
-			#break
-	#
-	## If our object is no longer selected, stop editing
-	#if not our_object_selected:
-		#print("PolygonEditor: Node lost focus, stopping editing")
-		#clear_current()
-		#return
-	#
-	## Update last selected nodes for comparison
-	#_last_selected_nodes = selected_nodes.duplicate()
 
-func _check_for_external_sync():
+func _on_timer_tick():
 	if not _is_editing_valid():
 		return
 	
-	var current_array: PackedVector2Array = _current_object.get(_current_property)
+	# Check selection focus
+	var selection = EditorInterface.get_selection()
+	var selected_nodes = selection.get_selected_nodes()
+	var our_object_selected = false
+	for node in selected_nodes:
+		if node == _current_object:
+			our_object_selected = true
+			break
 	
-	# Check if the array changed externally
+	# If our object is no longer selected, stop editing
+	if not our_object_selected:
+		print("PolygonEditor: Node lost focus, stopping editing")
+		clear_current()
+		return
+	
+	# Check for external sync changes
+	var current_array: PackedVector2Array = _current_object.get(_current_property)
 	if not _arrays_equal(current_array, _last_sync_check):
 		print("PolygonEditor detected external change")
 		
@@ -120,6 +100,9 @@ func _check_for_external_sync():
 		_polygon_data.vertices = current_array.duplicate()
 		_last_sync_check = current_array.duplicate()
 		_request_overlay_update()
+
+
+
 
 func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
 	if a.size() != b.size():
@@ -154,7 +137,7 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 		# Initialize sync tracking
 		_last_sync_check = _polygon_data.vertices.duplicate()
 		
-		# Start sync monitoring
+		# Start consolidated timer
 		if _sync_timer:
 			_sync_timer.start()
 		
@@ -164,7 +147,7 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 		
 		# Initialize focus tracking
 		var selection = EditorInterface.get_selection()
-		_last_selected_nodes = selection.get_selected_nodes().duplicate()
+		#_last_selected_nodes = selection.get_selected_nodes().duplicate()
 	
 	_request_overlay_update()
 
@@ -187,7 +170,7 @@ func clear_current():
 	_can_add_at = -1
 	_is_dragging = false
 	_last_sync_check.clear()
-	_last_selected_nodes.clear()
+	#_last_selected_nodes.clear()
 	_request_overlay_update()
 
 func handles(object) -> bool:

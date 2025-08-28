@@ -3,13 +3,13 @@ class_name PolygonEditor
 extends RefCounted
 
 # Visual constants
-const CURSOR_THRESHOLD := 6.0
-const VERTEX_RADIUS := 6.0
-const VERTEX_EXCLUSION_RADIUS := 20.0  # 2x vertex radius - no ghost hints near existing vertices
-const VERTEX_COLOR := Color(0.0, 0.5, 1.0, 0.5)
-const VERTEX_ACTIVE_COLOR := Color(1.0, 1.0, 1.0)
-const VERTEX_NEW_COLOR := Color(0.0, 1.0, 1.0, 0.5)
-const POLYGON_COLOR := Color(0.0, 0.5, 1.0, 0.2)
+const CURSOR_THRESHOLD: float = 6.0
+const VERTEX_RADIUS: float = 6.0
+const VERTEX_EXCLUSION_RADIUS: float = 20.0  # 2x vertex radius - no ghost hints near existing vertices
+const VERTEX_COLOR: Color = Color(0.0, 0.5, 1.0, 0.5)
+const VERTEX_ACTIVE_COLOR: Color = Color(1.0, 1.0, 1.0)
+const VERTEX_NEW_COLOR: Color = Color(0.0, 1.0, 1.0, 0.5)
+const POLYGON_COLOR: Color = Color(0.0, 0.5, 1.0, 0.2)
 
 # Core state
 var _plugin: EditorPlugin
@@ -38,7 +38,7 @@ var _ghost_vertex_pos: Vector2
 var _sync_timer: Timer
 var _last_sync_hash: int = 0
 
-func setup(plugin: EditorPlugin):
+func setup(plugin: EditorPlugin) -> void:
 	_plugin = plugin
 	_polygon_data = PolygonData.new()
 	
@@ -51,7 +51,7 @@ func setup(plugin: EditorPlugin):
 	# Add timer to plugin so it gets cleaned up properly
 	_plugin.add_child(_sync_timer)
 
-func cleanup():
+func cleanup() -> void:
 	print("cleanup")
 	
 	# Safe timer cleanup
@@ -68,21 +68,21 @@ func cleanup():
 	_plugin = null
 
 
-func _on_timer_tick():
+func _on_timer_tick() -> void:
 	if not _is_editing_valid():
 		return
 	
 	# Enhanced selection and scene checking
-	var selection = EditorInterface.get_selection()
+	var selection: EditorSelection = EditorInterface.get_selection()
 	if not selection:
 		print("PolygonEditor: Selection no longer available")
 		call_deferred("clear_current")
 		return
 	
-	var selected_nodes = selection.get_selected_nodes()
-	var our_object_selected = false
+	var selected_nodes: Array[Node] = selection.get_selected_nodes()
+	var our_object_selected: bool = false
 	
-	for node in selected_nodes:
+	for node: Node in selected_nodes:
 		# Verify node is still valid and properly in the scene tree
 		if is_instance_valid(node) and node.is_inside_tree() and node == _current_object:
 			our_object_selected = true
@@ -94,7 +94,7 @@ func _on_timer_tick():
 		return
 	
 	# Verify current scene hasn't changed
-	var current_scene = EditorInterface.get_edited_scene_root()
+	var current_scene: Node = EditorInterface.get_edited_scene_root()
 	if not current_scene:
 		print("PolygonEditor: Edited scene root is no longer available")
 		call_deferred("clear_current")
@@ -108,7 +108,7 @@ func _on_timer_tick():
 		return
 	
 	# OPTIMIZED: Hash-based change detection
-	var current_hash = _hash_array(current_array)
+	var current_hash: int = _hash_array(current_array)
 	
 	if current_hash != _last_sync_hash:
 		print("PolygonEditor detected external change")
@@ -127,14 +127,14 @@ func _on_timer_tick():
 
 # OPTIMIZED: Fast hash-based array comparison
 func _hash_array(arr: PackedVector2Array) -> int:
-	var hash = arr.size()
-	for i in range(arr.size()):
-		var v = arr[i]
+	var hash: int = arr.size()
+	for i: int in range(arr.size()):
+		var v: Vector2 = arr[i]
 		# Simple but effective hash combining x, y coordinates with array index
 		hash = hash * 31 + int(v.x * 1000) + int(v.y * 1000) * 1009 + i * 97
 	return hash
 
-func set_current(object: Object, property: String, property_editor: Vector2ArrayPropertyEditor = null):
+func set_current(object: Object, property: String, property_editor: Vector2ArrayPropertyEditor = null) -> void:
 	print("set_current")
 	print("Setting current: ", object, " property: ", property)
 	
@@ -163,14 +163,14 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 		
 		# Force editor selection - this ensures focus
 		EditorInterface.get_selection().clear()
-		EditorInterface.get_selection().add_node(object)
+		EditorInterface.get_selection().add_node(object as Node)
 		
 		# Initialize focus tracking
-		var selection = EditorInterface.get_selection()
+		var selection: EditorSelection = EditorInterface.get_selection()
 	
 	_request_overlay_update()
 
-func clear_current():
+func clear_current() -> void:
 	print("clear_current")
 	# Stop sync monitoring
 	if _sync_timer:
@@ -191,24 +191,24 @@ func clear_current():
 	_last_sync_hash = 0
 	_request_overlay_update()
 
-func handles(object) -> bool:
+func handles(object: Object) -> bool:
 	return _current_object != null and object == _current_object
 
-func edit(object):
+func edit(object: Object) -> void:
 	# Handled by set_current
 	pass
 
-func draw_overlay(overlay: Control):
+func draw_overlay(overlay: Control) -> void:
 	# CRITICAL: Comprehensive validation before drawing
 	if not _is_editing_valid():
 		return
 	
 	# Double-check that our object is still selected and exists in the scene tree
-	var selection = EditorInterface.get_selection()
-	var selected_nodes = selection.get_selected_nodes()
-	var our_object_selected = false
+	var selection: EditorSelection = EditorInterface.get_selection()
+	var selected_nodes: Array[Node] = selection.get_selected_nodes()
+	var our_object_selected: bool = false
 	
-	for node in selected_nodes:
+	for node: Node in selected_nodes:
 		# Verify node is still valid and in the scene tree
 		if is_instance_valid(node) and node.is_inside_tree() and node == _current_object:
 			our_object_selected = true
@@ -220,7 +220,7 @@ func draw_overlay(overlay: Control):
 		return
 	
 	# Verify the current scene hasn't changed
-	var current_scene = EditorInterface.get_edited_scene_root()
+	var current_scene: Node = EditorInterface.get_edited_scene_root()
 	if not current_scene:
 		print("PolygonEditor: No edited scene root")
 		call_deferred("clear_current")
@@ -228,8 +228,8 @@ func draw_overlay(overlay: Control):
 	
 	# Check if our object is still a descendant of the current scene
 	if not _current_object.is_ancestor_of(current_scene) and _current_object != current_scene:
-		var node = _current_object
-		var is_descendant = false
+		var node: Node = _current_object as Node
+		var is_descendant: bool = false
 		while node:
 			if node == current_scene:
 				is_descendant = true
@@ -247,9 +247,9 @@ func draw_overlay(overlay: Control):
 		return
 	
 	# OPTIMIZED: Pre-transform vertices once for drawing
-	var screen_vertices = PackedVector2Array()
+	var screen_vertices: PackedVector2Array = PackedVector2Array()
 	screen_vertices.resize(_polygon_data.vertices.size())
-	for i in range(_polygon_data.vertices.size()):
+	for i: int in range(_polygon_data.vertices.size()):
 		screen_vertices[i] = _transform_to_screen * _polygon_data.vertices[i]
 	
 	# Only draw polygon if we have at least 3 vertices
@@ -257,23 +257,23 @@ func draw_overlay(overlay: Control):
 		overlay.draw_colored_polygon(screen_vertices, POLYGON_COLOR)
 	
 	# Draw vertices using pre-transformed positions
-	for i in range(screen_vertices.size()):
+	for i: int in range(screen_vertices.size()):
 		_draw_vertex(overlay, screen_vertices[i], i)
 	
 	# Only show ghost vertex for adding if we have enough vertices to form a polygon
 	if _can_add_at != -1 and _polygon_data.vertices.size() >= 3:
 		_draw_ghost_vertex(overlay, _ghost_vertex_pos)
 
-func handle_input(event) -> bool:
+func handle_input(event: InputEvent) -> bool:
 	if not _is_editing_valid():
 		return false
 	
 	# Comprehensive selection and scene validation
-	var selection = EditorInterface.get_selection()
-	var selected_nodes = selection.get_selected_nodes()
-	var our_object_selected = false
+	var selection: EditorSelection = EditorInterface.get_selection()
+	var selected_nodes: Array[Node] = selection.get_selected_nodes()
+	var our_object_selected: bool = false
 	
-	for node in selected_nodes:
+	for node: Node in selected_nodes:
 		# Verify node is still valid and in the scene tree
 		if is_instance_valid(node) and node.is_inside_tree() and node == _current_object:
 			our_object_selected = true
@@ -285,18 +285,18 @@ func handle_input(event) -> bool:
 		return false
 	
 	# Verify the current scene is still valid
-	var current_scene = EditorInterface.get_edited_scene_root()
-	if not current_scene or not _current_object.is_inside_tree():
+	var current_scene: Node = EditorInterface.get_edited_scene_root()
+	if not current_scene or not (_current_object as Node).is_inside_tree():
 		print("PolygonEditor: Scene changed or object removed during input - clearing")
 		call_deferred("clear_current")
 		return false
 	
-	var handled := false
+	var handled: bool = false
 	
 	if event is InputEventMouseButton:
-		handled = _handle_mouse_button(event)
+		handled = _handle_mouse_button(event as InputEventMouseButton)
 	elif event is InputEventMouseMotion:
-		handled = _handle_mouse_motion(event)
+		handled = _handle_mouse_motion(event as InputEventMouseMotion)
 	
 	if handled:
 		_request_overlay_update()
@@ -327,9 +327,9 @@ func _is_editing_valid() -> bool:
 		return false
 	
 	# Verify the property exists and is the correct type
-	var property_list = _current_object.get_property_list()
-	var property_exists = false
-	for prop in property_list:
+	var property_list: Array[Dictionary] = _current_object.get_property_list()
+	var property_exists: bool = false
+	for prop: Dictionary in property_list:
 		if prop.name == _current_property and prop.type == TYPE_PACKED_VECTOR2_ARRAY:
 			property_exists = true
 			break
@@ -340,7 +340,7 @@ func _is_editing_valid() -> bool:
 		return false
 	
 	# Additional check: verify we can actually get the property value
-	var test_value = _current_object.get(_current_property)
+	var test_value: Variant = _current_object.get(_current_property)
 	if not test_value is PackedVector2Array:
 		print("PolygonEditor: Property value is not a PackedVector2Array")
 		call_deferred("clear_current")
@@ -348,13 +348,13 @@ func _is_editing_valid() -> bool:
 	
 	return true
 
-func _update_transforms():
+func _update_transforms() -> void:
 	if not _is_editing_valid():
 		return
 	
-	var node = _current_object as CanvasItem
-	var transform_viewport = node.get_viewport_transform()
-	var transform_canvas = node.get_canvas_transform()
+	var node: CanvasItem = _current_object as CanvasItem
+	var transform_viewport: Transform2D = node.get_viewport_transform()
+	var transform_canvas: Transform2D = node.get_canvas_transform()
 	
 	# Handle different node types for local transform
 	var transform_local: Transform2D
@@ -363,7 +363,7 @@ func _update_transforms():
 		transform_local = (node as Node2D).transform
 	elif node is Control:
 		# Control nodes use position, rotation, scale, and pivot_offset
-		var control = node as Control
+		var control: Control = node as Control
 		transform_local = Transform2D()
 		
 		# Apply scale
@@ -374,11 +374,11 @@ func _update_transforms():
 			transform_local = transform_local.rotated(control.rotation)
 		
 		# Apply translation (position - pivot_offset, then add pivot_offset back)
-		var pivot = control.pivot_offset
+		var pivot: Vector2 = control.pivot_offset
 		transform_local.origin = control.position + pivot
 		if pivot != Vector2.ZERO:
 			# Rotate and scale the pivot offset, then subtract it
-			var transformed_pivot = transform_local.basis_xform(pivot)
+			var transformed_pivot: Vector2 = transform_local.basis_xform(pivot)
 			transform_local.origin -= transformed_pivot
 	else:
 		# Fallback for other CanvasItem types
@@ -395,17 +395,17 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> bool:
 		return true
 	else:
 		# Update hover states
-		var old_active = _active_vertex_index
-		var old_add = _can_add_at
-		var old_ghost_pos = _ghost_vertex_pos
+		var old_active: int = _active_vertex_index
+		var old_add: int = _can_add_at
+		var old_ghost_pos: Vector2 = _ghost_vertex_pos
 		
 		_active_vertex_index = _get_active_vertex()
 		
 		# Only show ghost vertex if we have at least 3 vertices (can form a polygon)
 		if _active_vertex_index == -1 and _polygon_data.vertices.size() >= 3:
-			var add_result = _get_active_side_optimized()
-			_can_add_at = add_result.index
-			_ghost_vertex_pos = add_result.position
+			var add_result: Dictionary = _get_active_side_optimized()
+			_can_add_at = add_result.index as int
+			_ghost_vertex_pos = add_result.position as Vector2
 		else:
 			_can_add_at = -1
 		
@@ -437,48 +437,48 @@ func _handle_mouse_button(event: InputEventMouseButton) -> bool:
 
 # OPTIMIZED: Cache transformed vertices for active vertex detection
 func _get_active_vertex() -> int:
-	var vertices_size = _polygon_data.vertices.size()
-	for i in range(vertices_size):
-		var screen_pos = _transform_to_screen * _polygon_data.vertices[i]
+	var vertices_size: int = _polygon_data.vertices.size()
+	for i: int in range(vertices_size):
+		var screen_pos: Vector2 = _transform_to_screen * _polygon_data.vertices[i]
 		if (_cursor_pos - screen_pos).length_squared() < CURSOR_THRESHOLD * CURSOR_THRESHOLD:
 			return i
 	return -1
 
 # OPTIMIZED: More responsive ghost vertex positioning with exclusion zones
 func _get_active_side_optimized() -> Dictionary:
-	var result = {"index": -1, "position": Vector2.ZERO}
+	var result: Dictionary = {"index": -1, "position": Vector2.ZERO}
 	
 	if _active_vertex_index != -1:
 		return result
 	
-	var size = _polygon_data.vertices.size()
+	var size: int = _polygon_data.vertices.size()
 	if size < 3:  # Need at least 3 vertices to form sides
 		return result
 	
 	# OPTIMIZED: Pre-transform all vertices once
-	var screen_vertices = PackedVector2Array()
+	var screen_vertices: PackedVector2Array = PackedVector2Array()
 	screen_vertices.resize(size)
-	for i in range(size):
+	for i: int in range(size):
 		screen_vertices[i] = _transform_to_screen * _polygon_data.vertices[i]
 		
-	var min_distance_squared = CURSOR_THRESHOLD * CURSOR_THRESHOLD
-	var best_index = -1
-	var best_position = Vector2.ZERO
+	var min_distance_squared: float = CURSOR_THRESHOLD * CURSOR_THRESHOLD
+	var best_index: int = -1
+	var best_position: Vector2 = Vector2.ZERO
 	
-	for i in range(size):
-		var a = screen_vertices[i]
-		var b = screen_vertices[(i + 1) % size]
+	for i: int in range(size):
+		var a: Vector2 = screen_vertices[i]
+		var b: Vector2 = screen_vertices[(i + 1) % size]
 		
 		# Find closest point on line segment to cursor
-		var closest_point = _get_closest_point_on_segment(a, b, _cursor_pos)
-		var distance_squared = (_cursor_pos - closest_point).length_squared()
+		var closest_point: Vector2 = _get_closest_point_on_segment(a, b, _cursor_pos)
+		var distance_squared: float = (_cursor_pos - closest_point).length_squared()
 		
 		if distance_squared < min_distance_squared:
 			# NEW: Check if ghost vertex would be too close to existing vertices
-			var too_close_to_vertex = false
-			var exclusion_radius_squared = VERTEX_EXCLUSION_RADIUS * VERTEX_EXCLUSION_RADIUS
+			var too_close_to_vertex: bool = false
+			var exclusion_radius_squared: float = VERTEX_EXCLUSION_RADIUS * VERTEX_EXCLUSION_RADIUS
 			
-			for j in range(size):
+			for j: int in range(size):
 				if (closest_point - screen_vertices[j]).length_squared() < exclusion_radius_squared:
 					too_close_to_vertex = true
 					break
@@ -496,61 +496,61 @@ func _get_active_side_optimized() -> Dictionary:
 
 # Helper function to find closest point on line segment
 func _get_closest_point_on_segment(a: Vector2, b: Vector2, point: Vector2) -> Vector2:
-	var ab = b - a
-	var ap = point - a
+	var ab: Vector2 = b - a
+	var ap: Vector2 = point - a
 	
 	# If segment has zero length, return point a
-	var ab_length_squared = ab.length_squared()
+	var ab_length_squared: float = ab.length_squared()
 	if ab_length_squared == 0:
 		return a
 	
 	# Project point onto line, clamped to segment
-	var t = ap.dot(ab) / ab_length_squared
+	var t: float = ap.dot(ab) / ab_length_squared
 	t = clamp(t, 0.0, 1.0)
 	
 	return a + t * ab
 
-func _add_vertex():
+func _add_vertex() -> void:
 	# Use the world position calculated from ghost vertex
-	var position = _transform_to_local * _ghost_vertex_pos
-	var index = _can_add_at
+	var position: Vector2 = _transform_to_local * _ghost_vertex_pos
+	var index: int = _can_add_at
 	
 	_do_add_vertex(index, position)
 	_can_add_at = -1
 
-func _remove_vertex():
+func _remove_vertex() -> void:
 	# Can only remove vertices if we have more than 3 (to maintain polygon)
 	if _active_vertex_index == -1 or _polygon_data.vertices.size() <= 3:
 		return
 	
-	var index = _active_vertex_index
+	var index: int = _active_vertex_index
 	_do_remove_vertex(index)
 
-func _force_inspector_update():
+func _force_inspector_update() -> void:
 	if _current_property_editor and is_instance_valid(_current_property_editor):
 		_current_property_editor.notify_vertex_change(false)  # Allow emit_changed after undo/redo is complete
 
-func _drag_vertex(position: Vector2):
+func _drag_vertex(position: Vector2) -> void:
 	if _active_vertex_index == -1:
 		return
 	_do_update_vertex(_active_vertex_index, position.round())
 
-func _end_drag():
+func _end_drag() -> void:
 	if not _is_dragging:
 		return
 	
-	var final_pos = (_transform_to_local * _cursor_pos).round()
+	var final_pos: Vector2 = (_transform_to_local * _cursor_pos).round()
 	_do_update_vertex(_active_vertex_index, final_pos)
 	_is_dragging = false
 
-func _do_add_vertex(index: int, vertex: Vector2):
+func _do_add_vertex(index: int, vertex: Vector2) -> void:
 	_polygon_data.insert_vertex(index, vertex)
 	_current_object.set(_current_property, _polygon_data.vertices)
 	_active_vertex_index = index
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
 	_force_inspector_update()
 
-func _do_remove_vertex(index: int):
+func _do_remove_vertex(index: int) -> void:
 	_polygon_data.remove_vertex(index)
 	_current_object.set(_current_property, _polygon_data.vertices)
 	_active_vertex_index = -1
@@ -562,7 +562,7 @@ func _do_remove_vertex(index: int):
 		print("Polygon reduced to less than 3 vertices - clearing current editing")
 		call_deferred("clear_current")
 
-func _do_update_vertex(index: int, vertex: Vector2):
+func _do_update_vertex(index: int, vertex: Vector2) -> void:
 	_polygon_data.set_vertex(index, vertex)
 	_current_object.set(_current_property, _polygon_data.vertices)
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
@@ -571,17 +571,17 @@ func _do_update_vertex(index: int, vertex: Vector2):
 	if _current_property_editor and is_instance_valid(_current_property_editor):
 		_current_property_editor.notify_vertex_change(false)
 
-func _draw_vertex(overlay: Control, position: Vector2, index: int):
+func _draw_vertex(overlay: Control, position: Vector2, index: int) -> void:
 	overlay.draw_circle(position, VERTEX_RADIUS, VERTEX_COLOR)
 	if index == _active_vertex_index:
 		overlay.draw_circle(position, VERTEX_RADIUS - 1.0, VERTEX_ACTIVE_COLOR)
 		overlay.draw_string(overlay.get_theme_font("font"), 
 			position + Vector2(-16.0, -16.0), str(index), HORIZONTAL_ALIGNMENT_LEFT, 32.0)
 
-func _draw_ghost_vertex(overlay: Control, position: Vector2):
+func _draw_ghost_vertex(overlay: Control, position: Vector2) -> void:
 	overlay.draw_circle(position, VERTEX_RADIUS, VERTEX_NEW_COLOR)
 
-func _request_overlay_update():
+func _request_overlay_update() -> void:
 	if _plugin:
 		_plugin.update_overlays()
 
@@ -589,18 +589,18 @@ func _request_overlay_update():
 class PolygonData:
 	var vertices: PackedVector2Array = PackedVector2Array()
 	
-	func set_from_object(object: Object, property: String):
-		vertices = object.get(property)
+	func set_from_object(object: Object, property: String) -> void:
+		vertices = object.get(property) as PackedVector2Array
 		# Remove the auto-initialization - let the property editor handle this
 	
-	func clear():
+	func clear() -> void:
 		vertices = PackedVector2Array()
 	
-	func insert_vertex(index: int, vertex: Vector2):
+	func insert_vertex(index: int, vertex: Vector2) -> void:
 		vertices.insert(index, vertex)
 	
-	func remove_vertex(index: int):
+	func remove_vertex(index: int) -> void:
 		vertices.remove_at(index)
 	
-	func set_vertex(index: int, vertex: Vector2):
+	func set_vertex(index: int, vertex: Vector2) -> void:
 		vertices[index] = vertex

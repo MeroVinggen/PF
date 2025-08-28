@@ -38,6 +38,10 @@ var _ghost_vertex_pos: Vector2
 var _sync_timer: Timer
 var _last_sync_check: PackedVector2Array = PackedVector2Array()
 
+# NEW: Focus tracking
+var _focus_check_timer: Timer
+var _last_selected_nodes: Array[Node] = []
+
 func setup(plugin: EditorPlugin):
 	_plugin = plugin
 	_polygon_data = PolygonData.new()
@@ -47,14 +51,52 @@ func setup(plugin: EditorPlugin):
 	_sync_timer.wait_time = 0.05  # Check 20 times per second when editing
 	_sync_timer.autostart = false
 	_sync_timer.timeout.connect(_check_for_external_sync)
+	
+	# Setup focus tracking timer
+	_focus_check_timer = Timer.new()
+	_focus_check_timer.wait_time = 0.1  # Check 10 times per second
+	_focus_check_timer.autostart = true
+	_focus_check_timer.timeout.connect(_check_selection_focus)
+	
+	# Add timers to plugin so they get cleaned up properly
+	_plugin.add_child(_sync_timer)
+	_plugin.add_child(_focus_check_timer)
 
 func cleanup():
-	if _sync_timer:
+	if _sync_timer and _sync_timer.is_inside_tree():
 		_sync_timer.queue_free()
 		_sync_timer = null
+	
+	if _focus_check_timer and _focus_check_timer.is_inside_tree():
+		_focus_check_timer.queue_free()
+		_focus_check_timer = null
+	
 	clear_current()
 	_polygon_data = null
 	_plugin = null
+
+func _check_selection_focus():
+	if not _is_editing_valid():
+		return
+	
+	var selection = EditorInterface.get_selection()
+	var selected_nodes = selection.get_selected_nodes()
+	
+	# Check if our current object is still selected
+	var our_object_selected = false
+	for node in selected_nodes:
+		if node == _current_object:
+			our_object_selected = true
+			break
+	
+	# If our object is no longer selected, stop editing
+	if not our_object_selected:
+		print("PolygonEditor: Node lost focus, stopping editing")
+		clear_current()
+		return
+	
+	# Update last selected nodes for comparison
+	_last_selected_nodes = selected_nodes.duplicate()
 
 func _check_for_external_sync():
 	if not _is_editing_valid():
@@ -110,16 +152,16 @@ func set_current(object: Object, property: String, property_editor: Vector2Array
 		_last_sync_check = _polygon_data.vertices.duplicate()
 		
 		# Start sync monitoring
-		if _sync_timer and not _sync_timer.is_inside_tree():
-			# Add timer to scene tree if not already there
-			_plugin.add_child(_sync_timer)
-		
 		if _sync_timer:
 			_sync_timer.start()
 		
-		# Force editor selection
+		# Force editor selection - this ensures focus
 		EditorInterface.get_selection().clear()
 		EditorInterface.get_selection().add_node(object)
+		
+		# Initialize focus tracking
+		var selection = EditorInterface.get_selection()
+		_last_selected_nodes = selection.get_selected_nodes().duplicate()
 	
 	_request_overlay_update()
 
@@ -127,8 +169,10 @@ func clear_current():
 	# Stop sync monitoring
 	if _sync_timer:
 		_sync_timer.stop()
-		if _sync_timer.is_inside_tree():
-			_sync_timer.get_parent().remove_child(_sync_timer)
+	
+	# Notify property editor that we're stopping
+	if _current_property_editor and is_instance_valid(_current_property_editor):
+		_current_property_editor.notify_stop_editing()
 	
 	_current_object = null
 	_current_property = ""
@@ -139,6 +183,7 @@ func clear_current():
 	_can_add_at = -1
 	_is_dragging = false
 	_last_sync_check.clear()
+	_last_selected_nodes.clear()
 	_request_overlay_update()
 
 func handles(object) -> bool:
@@ -149,7 +194,21 @@ func edit(object):
 	pass
 
 func draw_overlay(overlay: Control):
+	# CRITICAL: Only draw if we have a valid current object and it's still selected
 	if not _is_editing_valid():
+		return
+	
+	# Double-check that our object is still selected
+	var selection = EditorInterface.get_selection()
+	var selected_nodes = selection.get_selected_nodes()
+	var our_object_selected = false
+	for node in selected_nodes:
+		if node == _current_object:
+			our_object_selected = true
+			break
+	
+	if not our_object_selected:
+		# Object is no longer selected, don't draw anything
 		return
 	
 	_update_transforms()
@@ -172,6 +231,19 @@ func draw_overlay(overlay: Control):
 
 func handle_input(event) -> bool:
 	if not _is_editing_valid():
+		return false
+	
+	# Also check selection in input handling
+	var selection = EditorInterface.get_selection()
+	var selected_nodes = selection.get_selected_nodes()
+	var our_object_selected = false
+	for node in selected_nodes:
+		if node == _current_object:
+			our_object_selected = true
+			break
+	
+	if not our_object_selected:
+		# Object is no longer selected, don't handle input
 		return false
 	
 	var handled := false

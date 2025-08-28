@@ -471,6 +471,10 @@ func _do_add_vertex(index: int, vertex: Vector2):
 	
 	# OPTIMIZED: Update sync tracking with hash
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
+	
+	# Notify property editor of the change
+	if _current_property_editor and is_instance_valid(_current_property_editor):
+		_current_property_editor.notify_vertex_change()
 
 func _do_remove_vertex(index: int):
 	_polygon_data.remove_vertex(index)
@@ -479,6 +483,10 @@ func _do_remove_vertex(index: int):
 	
 	# OPTIMIZED: Update sync tracking with hash
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
+	
+	# Notify property editor of the change
+	if _current_property_editor and is_instance_valid(_current_property_editor):
+		_current_property_editor.notify_vertex_change()
 	
 	# Check if we should stop editing due to insufficient points
 	if _polygon_data.vertices.size() < 3:
@@ -491,6 +499,10 @@ func _do_update_vertex(index: int, vertex: Vector2):
 	
 	# OPTIMIZED: Update sync tracking with hash
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
+	
+	# Notify property editor of the change
+	if _current_property_editor and is_instance_valid(_current_property_editor):
+		_current_property_editor.notify_vertex_change()
 
 func _draw_vertex(overlay: Control, position: Vector2, index: int):
 	overlay.draw_circle(position, VERTEX_RADIUS, VERTEX_COLOR)

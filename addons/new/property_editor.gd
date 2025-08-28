@@ -250,6 +250,15 @@ func notify_stop_editing():
 	print("Property editor for ", _property_name, " notified to stop editing")
 	_stop_editing_without_editor_call()
 
+func notify_vertex_change():
+	if is_instance_valid(_target_object):
+		var current_array: PackedVector2Array = _target_object.get(_property_name)
+		_last_known_hash = _hash_array(current_array)
+		
+		# Force the editor to update the property display
+		# This is what makes the array values update in real-time in the inspector
+		emit_changed(_property_name, current_array, "", false)
+
 func _update_button_state():
 	var should_enable = _target_object and _target_object is CanvasItem
 	

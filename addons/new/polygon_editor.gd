@@ -429,6 +429,9 @@ func _add_vertex():
 	undo.add_undo_method(self, "_do_remove_vertex", index)
 	undo.commit_action()
 	
+	# Force inspector update after undo/redo completes
+	call_deferred("_force_inspector_update")
+	
 	_can_add_at = -1
 
 func _remove_vertex():
@@ -444,11 +447,22 @@ func _remove_vertex():
 	undo.add_do_method(self, "_do_remove_vertex", index)
 	undo.add_undo_method(self, "_do_add_vertex", index, vertex_backup)
 	undo.commit_action()
+	
+	# Force inspector update after undo/redo completes
+	call_deferred("_force_inspector_update")
+
+func _force_inspector_update():
+	if _current_property_editor and is_instance_valid(_current_property_editor):
+		_current_property_editor.notify_vertex_change(false)  # Allow emit_changed after undo/redo is complete
 
 func _drag_vertex(position: Vector2):
 	if _active_vertex_index == -1:
 		return
 	_do_update_vertex(_active_vertex_index, position.round())
+	
+	# For real-time dragging, we want immediate inspector updates
+	if _current_property_editor and is_instance_valid(_current_property_editor):
+		_current_property_editor.notify_vertex_change(false)  # false = allow emit_changed for real-time updates
 
 func _end_drag():
 	if not _is_dragging:
@@ -461,6 +475,9 @@ func _end_drag():
 		undo.add_do_method(self, "_do_update_vertex", _active_vertex_index, final_pos)
 		undo.add_undo_method(self, "_do_update_vertex", _active_vertex_index, _drag_start_pos)
 		undo.commit_action()
+		
+		# After undo/redo commit, force a single inspector update
+		call_deferred("_force_inspector_update")
 	
 	_is_dragging = false
 
@@ -472,9 +489,9 @@ func _do_add_vertex(index: int, vertex: Vector2):
 	# OPTIMIZED: Update sync tracking with hash
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
 	
-	# Notify property editor of the change
+	# Notify property editor of the change - but disable emit_changed during undo/redo
 	if _current_property_editor and is_instance_valid(_current_property_editor):
-		_current_property_editor.notify_vertex_change()
+		_current_property_editor.notify_vertex_change(true)  # true = suppress emit_changed
 
 func _do_remove_vertex(index: int):
 	_polygon_data.remove_vertex(index)
@@ -484,9 +501,9 @@ func _do_remove_vertex(index: int):
 	# OPTIMIZED: Update sync tracking with hash
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
 	
-	# Notify property editor of the change
+	# Notify property editor of the change - but disable emit_changed during undo/redo
 	if _current_property_editor and is_instance_valid(_current_property_editor):
-		_current_property_editor.notify_vertex_change()
+		_current_property_editor.notify_vertex_change(true)  # true = suppress emit_changed
 	
 	# Check if we should stop editing due to insufficient points
 	if _polygon_data.vertices.size() < 3:
@@ -500,9 +517,9 @@ func _do_update_vertex(index: int, vertex: Vector2):
 	# OPTIMIZED: Update sync tracking with hash
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
 	
-	# Notify property editor of the change
+	# Notify property editor of the change - but disable emit_changed during undo/redo
 	if _current_property_editor and is_instance_valid(_current_property_editor):
-		_current_property_editor.notify_vertex_change()
+		_current_property_editor.notify_vertex_change(true)  # true = suppress emit_changed
 
 func _draw_vertex(overlay: Control, position: Vector2, index: int):
 	overlay.draw_circle(position, VERTEX_RADIUS, VERTEX_COLOR)

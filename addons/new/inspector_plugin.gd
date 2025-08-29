@@ -39,11 +39,28 @@ func _parse_property(object: Object, type: Variant.Type, name: String, hint_type
 		add_custom_control(property_editor)
 		return false
 	elif type == TYPE_ARRAY:
-		# Try multiple detection methods
-		if (hint_string == "Vector2" or 
-			hint_string.contains("Vector2") or 
+		# Enhanced Array[Vector2] detection
+		var is_vector2_array: bool = false
+		
+		# Check multiple hint patterns for Array[Vector2]
+		if (hint_string.contains("Vector2") or 
+			hint_string == "5:" or
+			hint_string.begins_with("2/2:") or
 			hint_type == PROPERTY_HINT_TYPE_STRING):
-			print("CREATING EDITOR for Array property: ", name)
+			is_vector2_array = true
+		else:
+			# Additional check - try to examine the actual property value
+			var current_value = object.get(name)
+			if current_value is Array:
+				if current_value.is_empty():
+					# Empty array - assume it could be Vector2 array based on name
+					if name.to_lower().contains("point") or name.to_lower().contains("vertex") or name.to_lower().contains("polygon"):
+						is_vector2_array = true
+				elif current_value.size() > 0 and current_value[0] is Vector2:
+					is_vector2_array = true
+		
+		if is_vector2_array:
+			print("CREATING EDITOR for Array[Vector2] property: ", name)
 			var property_editor: Vector2ArrayPropertyEditor = Vector2ArrayPropertyEditor.new()
 			property_editor.setup(_polygon_editor, object, name)
 			
@@ -52,6 +69,7 @@ func _parse_property(object: Object, type: Variant.Type, name: String, hint_type
 			
 			add_custom_control(property_editor)
 			return false
+	
 	return false
 
 func _on_property_editor_removed(editor: Vector2ArrayPropertyEditor) -> void:

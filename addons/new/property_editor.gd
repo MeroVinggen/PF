@@ -116,9 +116,14 @@ func _check_for_external_changes() -> void:
 			if prop.type == TYPE_PACKED_VECTOR2_ARRAY:
 				property_exists = true
 				break
-			elif prop.type == TYPE_ARRAY and prop.hint_string.contains("Vector2"):
-				property_exists = true
-				break
+			elif prop.type == TYPE_ARRAY:
+				# Enhanced Array[Vector2] detection
+				if (prop.hint_string.contains("Vector2") or 
+					prop.hint_string == "5:" or
+					prop.class_name == "Vector2" or
+					prop.hint_string.begins_with("2/2:")):
+					property_exists = true
+					break
 	
 	if not property_exists:
 		_stop_editing_without_editor_call()

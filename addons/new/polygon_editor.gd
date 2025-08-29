@@ -311,9 +311,14 @@ func _is_editing_valid() -> bool:
 			if prop.type == TYPE_PACKED_VECTOR2_ARRAY:
 				property_exists = true
 				break
-			elif prop.type == TYPE_ARRAY and (prop.hint_string.contains("Vector2") or prop.hint_string == "5:"):
-				property_exists = true
-				break
+			elif prop.type == TYPE_ARRAY:
+				# More comprehensive Array[Vector2] detection
+				if (prop.hint_string.contains("Vector2") or 
+					prop.hint_string == "5:" or
+					prop.class_name == "Vector2" or
+					prop.hint_string.begins_with("2/2:")):
+					property_exists = true
+					break
 	
 	if not property_exists:
 		call_deferred("clear_current")
@@ -327,10 +332,11 @@ func _is_editing_valid() -> bool:
 		# Check if it's an array of Vector2s
 		if test_value.is_empty():
 			return true
-		return test_value[0] is Vector2
+		# Verify first element is Vector2
+		if test_value.size() > 0 and test_value[0] is Vector2:
+			return true
 	
 	call_deferred("clear_current")
-	
 	return false
 
 func _update_transforms() -> void:

@@ -25,16 +25,33 @@ func _can_handle(object: Object) -> bool:
 	return true
 
 func _parse_property(object: Object, type: Variant.Type, name: String, hint_type: PropertyHint, hint_string: String, usage_flags: int, wide: bool) -> bool:
+	# Debug ALL array properties
+	if type == TYPE_ARRAY:
+		print("ARRAY PROPERTY - Name: ", name, " | Hint: ", hint_type, " | HintString: '", hint_string, "'")
+	
 	if type == TYPE_PACKED_VECTOR2_ARRAY:
 		var property_editor: Vector2ArrayPropertyEditor = Vector2ArrayPropertyEditor.new()
 		property_editor.setup(_polygon_editor, object, name)
 		
-		# Track the editor for cleanup
 		_property_editors.append(property_editor)
 		property_editor.tree_exiting.connect(_on_property_editor_removed.bind(property_editor))
 		
 		add_custom_control(property_editor)
-		return false  # Don't replace the original property editor
+		return false
+	elif type == TYPE_ARRAY:
+		# Try multiple detection methods
+		if (hint_string == "Vector2" or 
+			hint_string.contains("Vector2") or 
+			hint_type == PROPERTY_HINT_TYPE_STRING):
+			print("CREATING EDITOR for Array property: ", name)
+			var property_editor: Vector2ArrayPropertyEditor = Vector2ArrayPropertyEditor.new()
+			property_editor.setup(_polygon_editor, object, name)
+			
+			_property_editors.append(property_editor)
+			property_editor.tree_exiting.connect(_on_property_editor_removed.bind(property_editor))
+			
+			add_custom_control(property_editor)
+			return false
 	return false
 
 func _on_property_editor_removed(editor: Vector2ArrayPropertyEditor) -> void:

@@ -112,9 +112,13 @@ func _check_for_external_changes() -> void:
 	var property_list: Array[Dictionary] = _target_object.get_property_list()
 	var property_exists: bool = false
 	for prop: Dictionary in property_list:
-		if prop.name == _property_name and prop.type == TYPE_PACKED_VECTOR2_ARRAY:
-			property_exists = true
-			break
+		if prop.name == _property_name:
+			if prop.type == TYPE_PACKED_VECTOR2_ARRAY:
+				property_exists = true
+				break
+			elif prop.type == TYPE_ARRAY and prop.hint_string.contains("Vector2"):
+				property_exists = true
+				break
 	
 	if not property_exists:
 		_stop_editing_without_editor_call()
@@ -127,15 +131,39 @@ func _check_for_external_changes() -> void:
 			return
 	
 	# Safe property access
-	var current_array: PackedVector2Array = _target_object.get(_property_name)
-	if current_array == null:
+	var current_value = _target_object.get(_property_name)
+	if current_value == null:
 		_stop_editing_without_editor_call()
 		return
+	
+	# Convert to PackedVector2Array for consistent processing
+	var current_array: PackedVector2Array = _to_packed_array(current_value)
 	
 	# OPTIMIZED: Hash-based change detection
 	var current_hash: int = _hash_array(current_array)
 	if current_hash != _last_known_hash:
 		_handle_external_array_change(current_array, current_hash)
+
+func _to_packed_array(value) -> PackedVector2Array:
+	if value is PackedVector2Array:
+		return value
+	elif value is Array:
+		var packed: PackedVector2Array = PackedVector2Array()
+		for item in value:
+			if item is Vector2:
+				packed.append(item)
+		return packed
+	return PackedVector2Array()
+
+func _from_packed_array(packed_array: PackedVector2Array, original_value) -> Variant:
+	if original_value is PackedVector2Array:
+		return packed_array
+	elif original_value is Array:
+		var array: Array[Vector2] = []
+		for v in packed_array:
+			array.append(v)
+		return array
+	return packed_array
 
 func _handle_external_array_change(new_array: PackedVector2Array, new_hash: int) -> void:
 	_last_known_hash = new_hash
@@ -162,7 +190,8 @@ func _update_button_text() -> void:
 		_edit_button.text = "Unsupported node"
 		return
 	
-	var current_array: PackedVector2Array = _target_object.get(_property_name)
+	var current_value = _target_object.get(_property_name)
+	var current_array: PackedVector2Array = _to_packed_array(current_value)
 	
 	if current_array.size() < 3:
 		var points_needed: int = 3 - current_array.size()
@@ -192,7 +221,8 @@ func _add_needed_points() -> void:
 	if not is_instance_valid(_polygon_editor):
 		return
 	
-	var current_array: PackedVector2Array = _target_object.get(_property_name)
+	var current_value = _target_object.get(_property_name)
+	var current_array: PackedVector2Array = _to_packed_array(current_value)
 	var points_needed: int = 3 - current_array.size()
 	
 	# OPTIMIZED: Create new array with pre-allocated size
@@ -245,17 +275,20 @@ func _complete_point_addition() -> void:
 	call_deferred("_start_editing")
 
 func _do_set_points(points: PackedVector2Array) -> void:
-	_target_object.set(_property_name, points)
+	var original_value = _target_object.get(_property_name)
+	var new_value = _from_packed_array(points, original_value)
+	_target_object.set(_property_name, new_value)
 	# Update hash immediately
 	_last_known_hash = _hash_array(points)
 	# Force inspector update
-	emit_changed(_property_name, points, "", false)
+	emit_changed(_property_name, new_value, "", false)
 
 func _start_editing() -> void:
 	if not is_instance_valid(_polygon_editor):
 		return
 	
-	var current_array: PackedVector2Array = _target_object.get(_property_name)
+	var current_value = _target_object.get(_property_name)
+	var current_array: PackedVector2Array = _to_packed_array(current_value)
 	if current_array.size() < 3:
 		return  # Can't edit with less than 3 points
 	
@@ -288,7 +321,8 @@ func notify_stop_editing() -> void:
 
 func notify_vertex_change(suppress_emit: bool = false) -> void:
 	if is_instance_valid(_target_object):
-		var current_array: PackedVector2Array = _target_object.get(_property_name)
+		var current_value = _target_object.get(_property_name)
+		var current_array: PackedVector2Array = _to_packed_array(current_value)
 		
 		# Temporarily suppress external monitoring to prevent conflicts
 		_suppress_external_monitoring = true
@@ -298,7 +332,7 @@ func notify_vertex_change(suppress_emit: bool = false) -> void:
 		if not suppress_emit:
 			# Force the editor to update the property display
 			# This is what makes the array values update in real-time in the inspector
-			emit_changed(_property_name, current_array, "", false)
+			emit_changed(_property_name, current_value, "", false)
 		
 		# Re-enable monitoring after a short delay
 		call_deferred("_resume_external_monitoring")
@@ -308,9 +342,10 @@ func _resume_external_monitoring() -> void:
 
 func force_inspector_update() -> void:
 	if is_instance_valid(_target_object):
-		var current_array: PackedVector2Array = _target_object.get(_property_name)
+		var current_value = _target_object.get(_property_name)
+		var current_array: PackedVector2Array = _to_packed_array(current_value)
 		_last_known_hash = _hash_array(current_array)
-		emit_changed(_property_name, current_array, "", false)
+		emit_changed(_property_name, current_value, "", false)
 		refresh_button_text()
 
 func _update_button_state() -> void:
@@ -324,7 +359,8 @@ func _update_button_state() -> void:
 		if not should_enable:
 			_edit_button.tooltip_text = "This feature only works with CanvasItem objects (Node2D and Control)"
 		else:
-			var current_array: PackedVector2Array = _target_object.get(_property_name)
+			var current_value = _target_object.get(_property_name)
+			var current_array: PackedVector2Array = _to_packed_array(current_value)
 			if current_array.size() < 3:
 				var points_needed: int = 3 - current_array.size()
 				if current_array.size() == 0:

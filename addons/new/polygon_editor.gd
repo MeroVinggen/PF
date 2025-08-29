@@ -95,22 +95,25 @@ func _on_timer_tick() -> void:
 		return
 	
 	# Additional safety: check if we can still access the property
-	var current_array: PackedVector2Array = _current_object.get(_current_property)
+	var current_array = _current_object.get(_current_property)
 	if current_array == null:
 		call_deferred("clear_current")
 		return
 	
+	# Convert to PackedVector2Array for consistent processing
+	var packed_array: PackedVector2Array = _to_packed_array(current_array)
+	
 	# OPTIMIZED: Hash-based change detection
-	var current_hash: int = _hash_array(current_array)
+	var current_hash: int = _hash_array(packed_array)
 	
 	if current_hash != _last_sync_hash:
 		# If array is too small, we should stop editing
-		if current_array.size() < 3:
+		if packed_array.size() < 3:
 			call_deferred("clear_current")
 			return
 		
 		# Update our data and refresh display
-		_polygon_data.vertices = current_array
+		_polygon_data.vertices = packed_array
 		_last_sync_hash = current_hash
 		_request_overlay_update()
 
@@ -283,21 +286,19 @@ func handle_input(event: InputEvent) -> bool:
 	return handled
 
 # Private methods
+# Replace _is_editing_valid function:
 func _is_editing_valid() -> bool:
 	if not _current_object or not _current_property:
 		return false
 	
-	# Check if object is still valid
 	if not is_instance_valid(_current_object):
 		call_deferred("clear_current")
 		return false
 	
-	# Check if object is still a CanvasItem
 	if not _current_object is CanvasItem:
 		call_deferred("clear_current")
 		return false
 	
-	# Check if the property still exists on the object
 	if not _current_object.has_method("get") or not _current_object.has_method("set"):
 		call_deferred("clear_current")
 		return false
@@ -306,21 +307,31 @@ func _is_editing_valid() -> bool:
 	var property_list: Array[Dictionary] = _current_object.get_property_list()
 	var property_exists: bool = false
 	for prop: Dictionary in property_list:
-		if prop.name == _current_property and prop.type == TYPE_PACKED_VECTOR2_ARRAY:
-			property_exists = true
-			break
+		if prop.name == _current_property:
+			if prop.type == TYPE_PACKED_VECTOR2_ARRAY:
+				property_exists = true
+				break
+			elif prop.type == TYPE_ARRAY and (prop.hint_string.contains("Vector2") or prop.hint_string == "5:"):
+				property_exists = true
+				break
 	
 	if not property_exists:
 		call_deferred("clear_current")
 		return false
 	
-	# Additional check: verify we can actually get the property value
-	var test_value: PackedVector2Array = _current_object.get(_current_property)
-	if not test_value is PackedVector2Array:
-		call_deferred("clear_current")
-		return false
+	# Test that we can access the property and it contains Vector2s
+	var test_value = _current_object.get(_current_property)
+	if test_value is PackedVector2Array:
+		return true
+	elif test_value is Array:
+		# Check if it's an array of Vector2s
+		if test_value.is_empty():
+			return true
+		return test_value[0] is Vector2
 	
-	return true
+	call_deferred("clear_current")
+	
+	return false
 
 func _update_transforms() -> void:
 	if not _is_editing_valid():
@@ -519,14 +530,16 @@ func _end_drag() -> void:
 
 func _do_add_vertex(index: int, vertex: Vector2) -> void:
 	_polygon_data.insert_vertex(index, vertex)
-	_current_object.set(_current_property, _polygon_data.vertices)
+	var original_value = _current_object.get(_current_property)
+	_current_object.set(_current_property, _from_packed_array(_polygon_data.vertices, original_value))
 	_active_vertex_index = index
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
 	_force_inspector_update()
 
 func _do_remove_vertex(index: int) -> void:
 	_polygon_data.remove_vertex(index)
-	_current_object.set(_current_property, _polygon_data.vertices)
+	var original_value = _current_object.get(_current_property)
+	_current_object.set(_current_property, _from_packed_array(_polygon_data.vertices, original_value))
 	_active_vertex_index = -1
 	_last_sync_hash = _hash_array(_polygon_data.vertices)
 	_force_inspector_update()
@@ -563,8 +576,19 @@ class PolygonData:
 	var vertices: PackedVector2Array = PackedVector2Array()
 	
 	func set_from_object(object: Object, property: String) -> void:
-		vertices = object.get(property)
-		# Remove the auto-initialization - let the property editor handle this
+		var value = object.get(property)
+		vertices = _to_packed_array(value)
+	
+	func _to_packed_array(value) -> PackedVector2Array:
+		if value is PackedVector2Array:
+			return value
+		elif value is Array:
+			var packed: PackedVector2Array = PackedVector2Array()
+			for item in value:
+				if item is Vector2:
+					packed.append(item)
+			return packed
+		return PackedVector2Array()
 	
 	func clear() -> void:
 		vertices = PackedVector2Array()
@@ -577,3 +601,24 @@ class PolygonData:
 	
 	func set_vertex(index: int, vertex: Vector2) -> void:
 		vertices[index] = vertex
+
+func _to_packed_array(value) -> PackedVector2Array:
+	if value is PackedVector2Array:
+		return value
+	elif value is Array:
+		var packed: PackedVector2Array = PackedVector2Array()
+		for item in value:
+			if item is Vector2:
+				packed.append(item)
+		return packed
+	return PackedVector2Array()
+
+func _from_packed_array(packed_array: PackedVector2Array, original_value) -> Variant:
+	if original_value is PackedVector2Array:
+		return packed_array
+	elif original_value is Array:
+		var array: Array[Vector2] = []
+		for v in packed_array:
+			array.append(v)
+		return array
+	return packed_array

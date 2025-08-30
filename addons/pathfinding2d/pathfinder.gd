@@ -21,6 +21,10 @@ class_name Pathfinder
 @export var path_validation_rate: float = 0.2  # How often to validate current path (seconds)
 @export var auto_recalculate: bool = true  # Automatically recalculate when path becomes invalid
 
+@export var fast_validation_mode: bool = true  # Enable for dynamic environments
+@export var validation_lookahead: int = 3  # How many waypoints ahead to validate
+
+
 var system: PathfinderSystem
 var current_path: PackedVector2Array = PackedVector2Array()
 var target_position: Vector2
@@ -82,22 +86,71 @@ func _process(delta):
 		_follow_path(delta)
 
 func _update_dynamic_pathfinding(delta):
-	"""Handle dynamic path validation and recalculation"""
+	"""Handle dynamic path validation and recalculation - Enhanced"""
 	if not is_moving or current_path.is_empty():
 		return
 	
 	path_validation_timer += delta
 	
+	# Adaptive validation rate based on environment
+	var validation_rate = path_validation_rate
+	if fast_validation_mode and system and system.get_dynamic_obstacle_count() > 0:
+		validation_rate *= 0.3  # Much more frequent validation
+	
 	# Validate path periodically
-	if path_validation_timer >= path_validation_rate:
+	if path_validation_timer >= validation_rate:
 		path_validation_timer = 0.0
 		
-		if not is_path_valid():
-			print("Path became invalid - requesting recalculation")
+		# Enhanced validation - check immediate path AND lookahead
+		if not _is_immediate_path_valid():
+			print("Immediate path became invalid - emergency recalculation")
 			path_invalidated.emit()
 			
 			if auto_recalculate:
-				_attempt_path_recalculation()
+				# Stop movement immediately to avoid collision
+				var was_moving = is_moving
+				stop_movement()
+				if _attempt_path_recalculation():
+					# Successfully recalculated
+					pass
+				else:
+					print("Emergency stop - could not find alternative path")
+					path_blocked.emit()
+
+func _is_immediate_path_valid() -> bool:
+	"""Check if the immediate path ahead is valid - Enhanced"""
+	if not system or current_path.is_empty() or path_index >= current_path.size():
+		return false
+	
+	# Check current position safety
+	if system._is_circle_position_unsafe(global_position, agent_radius):
+		print("Current position is unsafe!")
+		return false
+	
+	# Check next few waypoints and paths to them
+	var check_count = min(validation_lookahead, current_path.size() - path_index)
+	
+	for i in range(path_index, path_index + check_count):
+		var waypoint = current_path[i]
+		
+		# Check if waypoint is safe
+		if system._is_circle_position_unsafe(waypoint, agent_radius):
+			print("Waypoint ", i, " is unsafe: ", waypoint)
+			return false
+		
+		# Check path to waypoint
+		if i == path_index:
+			# Check path from current position to next waypoint
+			if not system._is_safe_circle_path(global_position, waypoint, agent_radius):
+				print("Path to current waypoint is unsafe")
+				return false
+		elif i > path_index:
+			# Check path between waypoints
+			if not system._is_safe_circle_path(current_path[i-1], waypoint, agent_radius):
+				print("Path between waypoints ", i-1, " and ", i, " is unsafe")
+				return false
+	
+	return true
 
 func _attempt_path_recalculation():
 	"""Attempt to recalculate the path with fallback strategies"""
@@ -114,8 +167,14 @@ func _attempt_path_recalculation():
 	
 	print("Attempting automatic path recalculation to: ", original_target)
 	
+	# Force grid update first to ensure we have current obstacle positions
+	if system and system.is_grid_dirty():
+		system.force_grid_update()
+	
 	# Temporarily stop movement to avoid conflicts
 	var was_moving = is_moving
+	var old_path = current_path.duplicate()
+	var old_index = path_index
 	stop_movement()
 	
 	if find_path_to(original_target):
@@ -131,11 +190,44 @@ func _attempt_path_recalculation():
 		if consecutive_failed_recalcs >= max_failed_recalcs:
 			_try_alternative_pathfinding_strategies()
 		else:
-			# Resume movement with old path if it exists
-			if was_moving and not current_path.is_empty():
-				is_moving = true
+			# Try to continue with remaining valid segments of old path
+			if was_moving and not old_path.is_empty():
+				var remaining_path = _extract_valid_path_segments(old_path, old_index)
+				if not remaining_path.is_empty():
+					current_path = remaining_path
+					path_index = 0
+					is_moving = true
+					print("Continuing with remaining valid path segments")
+				else:
+					print("No valid path segments remaining")
 		
 		return false
+
+func _extract_valid_path_segments(path: PackedVector2Array, start_index: int) -> PackedVector2Array:
+	"""Extract valid segments from the remaining path"""
+	if not system or path.is_empty() or start_index >= path.size():
+		return PackedVector2Array()
+	
+	var valid_path = PackedVector2Array()
+	valid_path.append(global_position)  # Start from current position
+	
+	# Check each remaining segment
+	for i in range(start_index, path.size()):
+		var segment_start = valid_path[-1] if valid_path.size() > 0 else global_position
+		var segment_end = path[i]
+		
+		# If this segment is safe, add the endpoint
+		if system._is_safe_circle_path(segment_start, segment_end, agent_radius):
+			valid_path.append(segment_end)
+		else:
+			# Stop at first invalid segment
+			break
+	
+	# Need at least 2 points for a valid path
+	if valid_path.size() < 2:
+		return PackedVector2Array()
+	
+	return valid_path
 
 func _try_alternative_pathfinding_strategies():
 	"""Try alternative pathfinding strategies when normal recalculation fails"""
@@ -390,15 +482,24 @@ func _apply_unstuck_movement(delta):
 		print("Rotated unstuck direction")
 
 func _will_movement_cause_collision(target: Vector2, delta: float) -> bool:
-	"""Predict if movement towards target will cause collision"""
+	"""Predict if movement towards target will cause collision - Enhanced"""
 	if not system:
 		return false
 	
 	var direction = (target - global_position).normalized()
-	var movement = direction * movement_speed * delta
-	var future_position = global_position + movement
+	var movement_distance = movement_speed * delta
 	
-	return system._is_circle_position_unsafe(future_position, agent_radius)
+	# Check multiple points along the movement path
+	var samples = max(int(movement_distance / 5.0), 3)  # Sample every 5 units or at least 3 samples
+	
+	for i in range(1, samples + 1):
+		var t = float(i) / float(samples)
+		var test_position = global_position + direction * movement_distance * t
+		
+		if system._is_circle_position_unsafe(test_position, agent_radius):
+			return true
+	
+	return false
 
 func _handle_collision_avoidance(target: Vector2, delta: float):
 	"""Handle collision avoidance when direct movement is blocked"""
@@ -463,17 +564,43 @@ func get_current_path() -> PackedVector2Array:
 	return current_path
 
 func is_path_valid() -> bool:
+	"""Enhanced path validation"""
 	if not system or current_path.is_empty():
 		return false
 	
-	# Check if any segment of the remaining path is blocked
+	# Quick check: is current position safe?
+	if system._is_circle_position_unsafe(global_position, agent_radius):
+		return false
+	
+	# Check remaining path segments with more granular sampling
 	for i in range(path_index, current_path.size() - 1):
 		var start = current_path[i]
 		var end = current_path[i + 1]
 		
+		# Check endpoints
 		if system._is_circle_position_unsafe(start, agent_radius) or \
-		   system._is_circle_position_unsafe(end, agent_radius) or \
-		   not system._is_safe_circle_path(start, end, agent_radius):
+		   system._is_circle_position_unsafe(end, agent_radius):
+			return false
+		
+		# Check path with higher resolution for dynamic obstacles
+		if not _is_detailed_path_safe(start, end):
+			return false
+	
+	return true
+
+func _is_detailed_path_safe(start: Vector2, end: Vector2) -> bool:
+	"""Detailed path safety check with high resolution"""
+	if not system:
+		return false
+	
+	var distance = start.distance_to(end)
+	var samples = max(int(distance / 3.0), 5)  # Sample every 3 units minimum
+	
+	for i in range(samples + 1):
+		var t = float(i) / float(samples)
+		var test_pos = start.lerp(end, t)
+		
+		if system._is_circle_position_unsafe(test_pos, agent_radius):
 			return false
 	
 	return true

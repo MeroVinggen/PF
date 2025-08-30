@@ -17,6 +17,10 @@ class_name Pathfinder
 @export var unstuck_force: float = 50.0
 @export var corner_avoidance_distance: float = 20.0
 
+# Dynamic pathfinding settings
+@export var path_validation_rate: float = 0.2  # How often to validate current path (seconds)
+@export var auto_recalculate: bool = true  # Automatically recalculate when path becomes invalid
+
 var system: PathfinderSystem
 var current_path: PackedVector2Array = PackedVector2Array()
 var target_position: Vector2
@@ -31,11 +35,19 @@ var is_unsticking: bool = false
 var last_recalc_time: float = 0.0
 var recalc_cooldown: float = 1.0
 
+# Dynamic pathfinding variables
+var path_validation_timer: float = 0.0
+var last_path_hash: int = 0
+var consecutive_failed_recalcs: int = 0
+var max_failed_recalcs: int = 3
+
 signal path_found(path: PackedVector2Array)
 signal destination_reached()
 signal path_blocked()
 signal agent_stuck()
 signal agent_unstuck()
+signal path_invalidated()
+signal path_recalculated()
 
 func _ready():
 	add_to_group("pathfinders")
@@ -56,17 +68,121 @@ func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)
 
-# fix this
 func _physics_process(delta: float) -> void:
 	queue_redraw()
 
-	
 func _process(delta):
-	if Engine.is_editor_hint() or not auto_move or not is_moving:
+	if Engine.is_editor_hint() or not auto_move:
 		return
 	
-	_update_stuck_detection(delta)
-	_follow_path(delta)
+	_update_dynamic_pathfinding(delta)
+	
+	if is_moving:
+		_update_stuck_detection(delta)
+		_follow_path(delta)
+
+func _update_dynamic_pathfinding(delta):
+	"""Handle dynamic path validation and recalculation"""
+	if not is_moving or current_path.is_empty():
+		return
+	
+	path_validation_timer += delta
+	
+	# Validate path periodically
+	if path_validation_timer >= path_validation_rate:
+		path_validation_timer = 0.0
+		
+		if not is_path_valid():
+			print("Path became invalid - requesting recalculation")
+			path_invalidated.emit()
+			
+			if auto_recalculate:
+				_attempt_path_recalculation()
+
+func _attempt_path_recalculation():
+	"""Attempt to recalculate the path with fallback strategies"""
+	var current_time = Time.get_time_dict_from_system().get("second", 0) as float
+	if current_time - last_recalc_time < recalc_cooldown:
+		return false
+	
+	last_recalc_time = current_time
+	
+	# Try recalculating to original destination
+	var original_target = target_position
+	if current_path.size() > 0:
+		original_target = current_path[-1]
+	
+	print("Attempting automatic path recalculation to: ", original_target)
+	
+	# Temporarily stop movement to avoid conflicts
+	var was_moving = is_moving
+	stop_movement()
+	
+	if find_path_to(original_target):
+		print("Successfully recalculated path")
+		path_recalculated.emit()
+		consecutive_failed_recalcs = 0
+		return true
+	else:
+		consecutive_failed_recalcs += 1
+		print("Failed to recalculate path (attempt ", consecutive_failed_recalcs, "/", max_failed_recalcs, ")")
+		
+		# If we've failed too many times, try alternative strategies
+		if consecutive_failed_recalcs >= max_failed_recalcs:
+			_try_alternative_pathfinding_strategies()
+		else:
+			# Resume movement with old path if it exists
+			if was_moving and not current_path.is_empty():
+				is_moving = true
+		
+		return false
+
+func _try_alternative_pathfinding_strategies():
+	"""Try alternative pathfinding strategies when normal recalculation fails"""
+	print("Trying alternative pathfinding strategies...")
+	
+	# Strategy 1: Try pathfinding to a point closer to current position
+	var fallback_targets = _generate_fallback_targets()
+	
+	for fallback_target in fallback_targets:
+		if find_path_to(fallback_target):
+			print("Found alternative path to fallback target: ", fallback_target)
+			consecutive_failed_recalcs = 0
+			return
+	
+	# Strategy 2: Try moving to the last known good waypoint
+	if current_path.size() > path_index + 1:
+		var last_good_waypoint = current_path[path_index + 1]
+		if find_path_to(last_good_waypoint):
+			print("Found path to last good waypoint: ", last_good_waypoint)
+			consecutive_failed_recalcs = 0
+			return
+	
+	# Strategy 3: Emergency stop
+	print("All pathfinding strategies failed - stopping movement")
+	stop_movement()
+	path_blocked.emit()
+	consecutive_failed_recalcs = 0
+
+func _generate_fallback_targets() -> Array[Vector2]:
+	"""Generate fallback target positions for alternative pathfinding"""
+	var fallback_targets: Array[Vector2] = []
+	var original_target = target_position
+	
+	# Generate points in a circle around the original target
+	var fallback_radius = [50.0, 100.0, 150.0]
+	var angle_steps = 8
+	
+	for radius in fallback_radius:
+		for i in angle_steps:
+			var angle = (i * TAU) / angle_steps
+			var fallback_pos = original_target + Vector2(cos(angle), sin(angle)) * radius
+			fallback_targets.append(fallback_pos)
+	
+	# Sort by distance to current position (closer first)
+	fallback_targets.sort_custom(func(a, b): return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
+	
+	return fallback_targets
 
 func _update_stuck_detection(delta):
 	"""Monitor for stuck situations and handle recovery"""
@@ -97,6 +213,7 @@ func _handle_stuck_situation():
 	agent_stuck.emit()
 	is_unsticking = true
 	
+	# Try different recovery strategies in order
 	if not _try_corner_avoidance():
 		if not _try_path_recalculation():
 			_try_emergency_movement()
@@ -133,24 +250,7 @@ func _try_corner_avoidance() -> bool:
 
 func _try_path_recalculation() -> bool:
 	"""Try recalculating the path"""
-	var current_time = Time.get_time_dict_from_system().get("second", 0) as float
-	if current_time - last_recalc_time < recalc_cooldown:
-		return false
-	
-	last_recalc_time = current_time
-	print("Attempting path recalculation...")
-	
-	var original_target = target_position
-	if current_path.size() > path_index:
-		original_target = current_path[-1]
-	
-	stop_movement()
-	
-	if find_path_to(original_target):
-		print("Successfully recalculated path")
-		return true
-	
-	return false
+	return _attempt_path_recalculation()
 
 func _try_emergency_movement():
 	"""Last resort: try random movement directions"""
@@ -193,14 +293,24 @@ func find_path_to(destination: Vector2) -> bool:
 	path_index = 0
 	is_moving = true
 	
-	# Reset stuck detection
+	# Reset stuck detection and path validation
 	stuck_timer = 0.0
 	is_unsticking = false
 	last_positions.clear()
+	path_validation_timer = 0.0
+	last_path_hash = _calculate_path_hash(path)
+	consecutive_failed_recalcs = 0
 	
 	print("Pathfinder: Path found with ", path.size(), " waypoints")
 	path_found.emit(current_path)
 	return true
+
+func _calculate_path_hash(path: PackedVector2Array) -> int:
+	"""Calculate a hash for the path to detect changes"""
+	var hash_string = ""
+	for point in path:
+		hash_string += str(int(point.x)) + "," + str(int(point.y)) + ";"
+	return hash_string.hash()
 
 func move_to(destination: Vector2):
 	if find_path_to(destination):
@@ -214,6 +324,7 @@ func stop_movement():
 	path_index = 0
 	is_unsticking = false
 	stuck_timer = 0.0
+	path_validation_timer = 0.0
 
 func _follow_path(delta):
 	if current_path.is_empty() or path_index >= current_path.size():
@@ -343,6 +454,8 @@ func _on_destination_reached():
 	path_index = 0
 	is_unsticking = false
 	stuck_timer = 0.0
+	path_validation_timer = 0.0
+	consecutive_failed_recalcs = 0
 	print("Pathfinder: Destination reached!")
 	destination_reached.emit()
 
@@ -353,6 +466,7 @@ func is_path_valid() -> bool:
 	if not system or current_path.is_empty():
 		return false
 	
+	# Check if any segment of the remaining path is blocked
 	for i in range(path_index, current_path.size() - 1):
 		var start = current_path[i]
 		var end = current_path[i + 1]
@@ -365,45 +479,55 @@ func is_path_valid() -> bool:
 	return true
 
 func recalculate_path():
+	"""Manually trigger path recalculation"""
 	if not is_moving:
 		return
 	
-	var destination = target_position
-	if current_path.size() > path_index:
-		destination = current_path[-1]
-	
-	print("Recalculating path from current position")
-	find_path_to(destination)
+	_attempt_path_recalculation()
 
 func _draw() -> void:
 	if not debug_draw:
 		return
 	
-	# Draw agent circle
+	# Draw agent circle with status coloring
 	var color = agent_color
-	if is_unsticking:
-		color = Color.ORANGE
+	if consecutive_failed_recalcs > 0:
+		color = Color.PURPLE  # Path recalculation issues
+	elif is_unsticking:
+		color = Color.ORANGE  # Unsticking
 	elif stuck_timer > stuck_time_threshold * 0.7:
-		color = Color.YELLOW
+		color = Color.YELLOW  # Getting stuck
+	elif not is_path_valid() and is_moving:
+		color = Color.RED  # Invalid path
 	
 	draw_circle(Vector2.ZERO, agent_radius, color * 0.7)
 	draw_arc(Vector2.ZERO, agent_radius, 0, TAU, 32, color, 2.0)
 	
-	# Draw current path
+	# Draw current path with validation status
 	if current_path.size() > 1:
 		for i in range(current_path.size() - 1):
 			var start = to_local(current_path[i])
 			var end = to_local(current_path[i + 1])
-			draw_line(start, end, path_color, 3.0)
+			
+			# Color path segments based on validity
+			var segment_color = path_color
+			if i >= path_index:
+				# Check if this segment is still valid
+				if system and not system._is_safe_circle_path(current_path[i], current_path[i + 1], agent_radius):
+					segment_color = Color.RED
+			else:
+				segment_color = Color.GRAY  # Already passed
+			
+			draw_line(start, end, segment_color, 3.0)
 		
 		# Draw waypoints
 		for i in range(current_path.size()):
 			var point = to_local(current_path[i])
 			var color_waypoint = path_color
 			if i == path_index:
-				color_waypoint = Color.WHITE
+				color_waypoint = Color.WHITE  # Current target
 			elif i < path_index:
-				color_waypoint = Color.GRAY
+				color_waypoint = Color.GRAY  # Passed waypoints
 			draw_circle(point, 5.0, color_waypoint)
 	
 	# Draw target position
@@ -411,11 +535,25 @@ func _draw() -> void:
 		var target_local = to_local(target_position)
 		draw_circle(target_local, 8.0, Color.MAGENTA)
 	
-	# Draw corner avoidance radius
+	# Draw dynamic status indicators
+	if path_validation_timer > 0:
+		# Path validation progress indicator
+		var progress = path_validation_timer / path_validation_rate
+		var indicator_pos = Vector2(0, -agent_radius - 15)
+		var indicator_size = Vector2(20, 3)
+		draw_rect(Rect2(indicator_pos - indicator_size * 0.5, indicator_size), Color.BLACK)
+		draw_rect(Rect2(indicator_pos - indicator_size * 0.5, Vector2(indicator_size.x * progress, indicator_size.y)), Color.CYAN)
+	
+	# Draw recalculation failure count
+	if consecutive_failed_recalcs > 0:
+		var warning_pos = Vector2(agent_radius + 5, -5)
+		for i in consecutive_failed_recalcs:
+			draw_circle(warning_pos + Vector2(i * 8, 0), 3.0, Color.RED)
+	
+	# Other existing debug drawing...
 	if corner_avoidance_distance > 0:
 		draw_arc(Vector2.ZERO, corner_avoidance_distance, 0, TAU, 32, Color.CYAN * 0.3, 1.0)
 	
-	# Draw unstuck direction
 	if is_unsticking and unstuck_direction.length() > 0.1:
 		var arrow_end = unstuck_direction * 20
 		draw_line(Vector2.ZERO, arrow_end, Color.RED, 3.0)
@@ -423,16 +561,6 @@ func _draw() -> void:
 		var arrow_angle = 0.5
 		draw_line(arrow_end, arrow_end - unstuck_direction.rotated(arrow_angle) * arrow_size, Color.RED, 2.0)
 		draw_line(arrow_end, arrow_end - unstuck_direction.rotated(-arrow_angle) * arrow_size, Color.RED, 2.0)
-	
-	# Draw stuck detection progress bar
-	#if stuck_timer > 0:
-		#var progress = stuck_timer / stuck_time_threshold
-		#var bar_width = 30.0
-		#var bar_height = 4.0
-		#var bar_pos = Vector2(-bar_width * 0.5, -agent_radius - 10)
-		#
-		#draw_rect(Rect2(bar_pos, Vector2(bar_width, bar_height)), Color.BLACK)
-		#draw_rect(Rect2(bar_pos, Vector2(bar_width * progress, bar_height)), Color.RED)
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []
@@ -446,8 +574,11 @@ func _get_configuration_warnings() -> PackedStringArray:
 	if arrival_distance <= 0:
 		warnings.append("Arrival distance must be greater than 0")
 	
-	if stuck_time_threshold <= 0:
-		warnings.append("Stuck time threshold must be greater than 0")
+	if path_validation_rate <= 0:
+		warnings.append("Path validation rate must be greater than 0")
+	
+	if path_validation_rate < 0.1:
+		warnings.append("Very low path validation rate may cause performance issues")
 	
 	return warnings
 
@@ -467,3 +598,12 @@ func is_stuck() -> bool:
 
 func get_stuck_progress() -> float:
 	return stuck_timer / stuck_time_threshold
+
+func get_path_validation_progress() -> float:
+	return path_validation_timer / path_validation_rate
+
+func get_failed_recalc_count() -> int:
+	return consecutive_failed_recalcs
+
+func is_path_being_validated() -> bool:
+	return is_moving and current_path.size() > 0

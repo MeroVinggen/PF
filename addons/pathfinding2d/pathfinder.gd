@@ -86,7 +86,7 @@ func _process(delta):
 		_follow_path(delta)
 
 func _update_dynamic_pathfinding(delta):
-	"""Handle dynamic path validation and recalculation - Enhanced"""
+	"""Handle dynamic path validation and recalculation - Fixed"""
 	if not is_moving or current_path.is_empty():
 		return
 	
@@ -103,19 +103,138 @@ func _update_dynamic_pathfinding(delta):
 		
 		# Enhanced validation - check immediate path AND lookahead
 		if not _is_immediate_path_valid():
-			print("Immediate path became invalid - emergency recalculation")
+			print("Immediate path became invalid - attempting recalculation")
 			path_invalidated.emit()
 			
 			if auto_recalculate:
-				# Stop movement immediately to avoid collision
-				var was_moving = is_moving
-				stop_movement()
-				if _attempt_path_recalculation():
-					# Successfully recalculated
-					pass
-				else:
-					print("Emergency stop - could not find alternative path")
-					path_blocked.emit()
+				# Don't stop movement immediately - try to recalculate first
+				if not _attempt_path_recalculation():
+					print("Could not find alternative path - trying emergency strategies")
+					_try_emergency_pathfinding()
+
+func _try_emergency_pathfinding():
+	"""Enhanced emergency pathfinding strategies"""
+	print("Trying emergency pathfinding strategies...")
+	
+	# Strategy 1: Try moving to any nearby safe position
+	var safe_positions = _find_nearby_safe_positions(5)
+	for safe_pos in safe_positions:
+		if _internal_find_path_to(safe_pos):
+			print("Found emergency path to safe position: ", safe_pos)
+			return
+	
+	# Strategy 2: Try moving backwards along current path
+	if _try_reverse_path_movement():
+		return
+	
+	# Strategy 3: Try local exploration to find clear space
+	if _try_local_exploration():
+		return
+	
+	# Strategy 4: Last resort - stop but don't give up completely
+	print("Emergency pathfinding failed - pausing for obstacle to move")
+	_pause_for_obstacle_movement()
+
+func _pause_for_obstacle_movement():
+	"""Pause movement and retry after a delay"""
+	is_moving = false
+	
+	# Set up a timer to retry pathfinding
+	var retry_timer = get_tree().create_timer(1.0)
+	retry_timer.timeout.connect(_retry_pathfinding_after_pause)
+	
+	print("Pausing movement, will retry in 1 second")
+
+func _retry_pathfinding_after_pause():
+	"""Retry pathfinding after pause"""
+	print("Retrying pathfinding after pause...")
+	
+	# Reset failure count and try again
+	consecutive_failed_recalcs = 0
+	
+	if find_path_to(target_position):
+		print("Successfully found path after pause")
+	else:
+		print("Still no path available - will try again when obstacles move")
+		# Set up another retry if we're still stuck
+		var retry_timer = get_tree().create_timer(2.0)
+		retry_timer.timeout.connect(_retry_pathfinding_after_pause)
+
+
+
+func _try_reverse_path_movement() -> bool:
+	"""Try moving backwards along the current path"""
+	if current_path.size() <= 1 or path_index <= 0:
+		return false
+	
+	# Find a previous waypoint that's still safe
+	for i in range(path_index - 1, -1, -1):
+		var reverse_target = current_path[i]
+		if not system._is_circle_position_unsafe(reverse_target, agent_radius):
+			print("Trying reverse movement to waypoint ", i)
+			if _internal_find_path_to(reverse_target):
+				print("Successfully found reverse path")
+				return true
+	
+	return false
+
+func _try_local_exploration() -> bool:
+	"""Try local exploration to find a path around the immediate obstacle"""
+	# Create a small exploration pattern around current position
+	var exploration_points = []
+	var base_distance = agent_radius * 2
+	
+	# Create a spiral pattern for exploration
+	for ring in range(1, 4):
+		var ring_distance = base_distance * ring
+		var points_in_ring = 8 * ring
+		
+		for i in points_in_ring:
+			var angle = (i * TAU) / points_in_ring
+			var explore_pos = global_position + Vector2(cos(angle), sin(angle)) * ring_distance
+			
+			if _is_point_in_polygon(explore_pos, system.bounds_polygon) and \
+			   not system._is_circle_position_unsafe(explore_pos, agent_radius):
+				exploration_points.append(explore_pos)
+	
+	# Try each exploration point
+	for explore_pos in exploration_points:
+		if _internal_find_path_to(explore_pos):
+			print("Found exploration path to: ", explore_pos)
+			# After reaching exploration point, try original target again
+			target_position = target_position  # Keep original target for later
+			return true
+	
+	return false
+
+func _find_nearby_safe_positions(count: int) -> Array[Vector2]:
+	"""Find nearby safe positions for emergency movement"""
+	var safe_positions: Array[Vector2] = []
+	var search_radius = agent_radius * 3
+	var max_search_radius = agent_radius * 10
+	
+	while safe_positions.size() < count and search_radius <= max_search_radius:
+		var angles = []
+		for i in 16:  # Check 16 directions
+			angles.append((i * TAU) / 16)
+		
+		for angle in angles:
+			var test_pos = global_position + Vector2(cos(angle), sin(angle)) * search_radius
+			
+			if _is_point_in_polygon(test_pos, system.bounds_polygon) and \
+			   not system._is_circle_position_unsafe(test_pos, agent_radius):
+				safe_positions.append(test_pos)
+				
+				if safe_positions.size() >= count:
+					break
+		
+		search_radius += agent_radius * 2
+	
+	# Sort by distance to original target
+	if target_position != Vector2.ZERO:
+		safe_positions.sort_custom(func(a, b): return target_position.distance_squared_to(a) < target_position.distance_squared_to(b))
+	
+	return safe_positions
 
 func _is_immediate_path_valid() -> bool:
 	"""Check if the immediate path ahead is valid - Enhanced"""
@@ -152,56 +271,149 @@ func _is_immediate_path_valid() -> bool:
 	
 	return true
 
-func _attempt_path_recalculation():
-	"""Attempt to recalculate the path with fallback strategies"""
+func _attempt_path_recalculation() -> bool:
+	"""Attempt to recalculate the path with enhanced strategies"""
 	var current_time = Time.get_time_dict_from_system().get("second", 0) as float
 	if current_time - last_recalc_time < recalc_cooldown:
 		return false
 	
 	last_recalc_time = current_time
 	
-	# Try recalculating to original destination
-	var original_target = target_position
-	if current_path.size() > 0:
-		original_target = current_path[-1]
+	# Try multiple target strategies in order
+	var targets_to_try = _get_recalculation_targets()
 	
-	print("Attempting automatic path recalculation to: ", original_target)
-	
-	# Force grid update first to ensure we have current obstacle positions
-	if system and system.is_grid_dirty():
-		system.force_grid_update()
-	
-	# Temporarily stop movement to avoid conflicts
-	var was_moving = is_moving
-	var old_path = current_path.duplicate()
-	var old_index = path_index
-	stop_movement()
-	
-	if find_path_to(original_target):
-		print("Successfully recalculated path")
-		path_recalculated.emit()
-		consecutive_failed_recalcs = 0
-		return true
-	else:
-		consecutive_failed_recalcs += 1
-		print("Failed to recalculate path (attempt ", consecutive_failed_recalcs, "/", max_failed_recalcs, ")")
+	for target_data in targets_to_try:
+		var target = target_data.position
+		var strategy = target_data.strategy
 		
-		# If we've failed too many times, try alternative strategies
-		if consecutive_failed_recalcs >= max_failed_recalcs:
-			_try_alternative_pathfinding_strategies()
+		print("Trying ", strategy, " to: ", target)
+		
+		# Force grid update first
+		if system and system.is_grid_dirty():
+			system.force_grid_update()
+		
+		# Store current state
+		var old_path = current_path.duplicate()
+		var old_index = path_index
+		var was_moving = is_moving
+		
+		# Try pathfinding to this target
+		if _internal_find_path_to(target):
+			print("Successfully found alternative path using ", strategy)
+			path_recalculated.emit()
+			consecutive_failed_recalcs = 0
+			return true
 		else:
-			# Try to continue with remaining valid segments of old path
-			if was_moving and not old_path.is_empty():
-				var remaining_path = _extract_valid_path_segments(old_path, old_index)
-				if not remaining_path.is_empty():
-					current_path = remaining_path
-					path_index = 0
-					is_moving = true
-					print("Continuing with remaining valid path segments")
-				else:
-					print("No valid path segments remaining")
-		
+			# Restore state for next attempt
+			current_path = old_path
+			path_index = old_index
+			is_moving = was_moving
+	
+	# All strategies failed
+	consecutive_failed_recalcs += 1
+	print("All recalculation strategies failed (attempt ", consecutive_failed_recalcs, "/", max_failed_recalcs, ")")
+	
+	# Try partial path continuation as last resort
+	if consecutive_failed_recalcs < max_failed_recalcs:
+		return _try_partial_path_continuation()
+	
+	return false
+
+func _try_partial_path_continuation() -> bool:
+	"""Try to continue with remaining valid path segments"""
+	if current_path.is_empty() or path_index >= current_path.size():
 		return false
+	
+	var valid_segments = _extract_valid_path_segments(current_path, path_index)
+	if valid_segments.size() >= 2:
+		current_path = valid_segments
+		path_index = 0
+		print("Continuing with ", valid_segments.size(), " valid path segments")
+		return true
+	
+	return false	
+
+func _internal_find_path_to(destination: Vector2) -> bool:
+	"""Internal pathfinding without state reset"""
+	if not system:
+		return false
+	
+	var path = system.find_path_for_circle(global_position, destination, agent_radius)
+	
+	if path.is_empty():
+		return false
+	
+	current_path = path
+	target_position = destination
+	path_index = 0
+	is_moving = true
+	
+	# Only reset some state, keep stuck detection running
+	path_validation_timer = 0.0
+	last_path_hash = _calculate_path_hash(path)
+	
+	return true
+
+func _get_recalculation_targets() -> Array:
+	"""Get list of targets to try for recalculation, ordered by preference"""
+	var targets = []
+	var original_target = target_position
+	
+	# Strategy 1: Original target (in case obstacle moved away)
+	targets.append({
+		"position": original_target,
+		"strategy": "original_target"
+	})
+	
+	# Strategy 2: Current movement target (immediate waypoint)
+	if current_path.size() > path_index:
+		targets.append({
+			"position": current_path[path_index],
+			"strategy": "current_waypoint"
+		})
+	
+	# Strategy 3: Next few waypoints
+	for i in range(path_index + 1, min(path_index + 4, current_path.size())):
+		targets.append({
+			"position": current_path[i],
+			"strategy": "waypoint_" + str(i)
+		})
+	
+	# Strategy 4: Nearby safe positions around original target
+	var nearby_positions = _generate_nearby_safe_positions(original_target, 50.0, 8)
+	for pos in nearby_positions:
+		targets.append({
+			"position": pos,
+			"strategy": "nearby_safe"
+		})
+	
+	# Strategy 5: Wider search around original target
+	var wider_positions = _generate_nearby_safe_positions(original_target, 100.0, 12)
+	for pos in wider_positions:
+		targets.append({
+			"position": pos,
+			"strategy": "wider_search"
+		})
+	
+	return targets
+
+func _generate_nearby_safe_positions(center: Vector2, radius: float, count: int) -> Array[Vector2]:
+	"""Generate safe positions around a center point"""
+	var positions: Array[Vector2] = []
+	
+	for i in count:
+		var angle = (i * TAU) / count
+		var test_pos = center + Vector2(cos(angle), sin(angle)) * radius
+		
+		# Check if position is within bounds and safe
+		if _is_point_in_polygon(test_pos, system.bounds_polygon) and \
+		   not system._is_circle_position_unsafe(test_pos, agent_radius):
+			positions.append(test_pos)
+	
+	# Sort by distance to current position
+	positions.sort_custom(func(a, b): return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
+	
+	return positions
 
 func _extract_valid_path_segments(path: PackedVector2Array, start_index: int) -> PackedVector2Array:
 	"""Extract valid segments from the remaining path"""
@@ -230,31 +442,60 @@ func _extract_valid_path_segments(path: PackedVector2Array, start_index: int) ->
 	return valid_path
 
 func _try_alternative_pathfinding_strategies():
-	"""Try alternative pathfinding strategies when normal recalculation fails"""
-	print("Trying alternative pathfinding strategies...")
+	"""Enhanced alternative pathfinding with more aggressive strategies"""
+	print("Trying enhanced alternative pathfinding strategies...")
 	
-	# Strategy 1: Try pathfinding to a point closer to current position
-	var fallback_targets = _generate_fallback_targets()
-	
-	for fallback_target in fallback_targets:
-		if find_path_to(fallback_target):
-			print("Found alternative path to fallback target: ", fallback_target)
-			consecutive_failed_recalcs = 0
-			return
-	
-	# Strategy 2: Try moving to the last known good waypoint
-	if current_path.size() > path_index + 1:
-		var last_good_waypoint = current_path[path_index + 1]
-		if find_path_to(last_good_waypoint):
-			print("Found path to last good waypoint: ", last_good_waypoint)
-			consecutive_failed_recalcs = 0
-			return
-	
-	# Strategy 3: Emergency stop
-	print("All pathfinding strategies failed - stopping movement")
-	stop_movement()
-	path_blocked.emit()
+	# Reset failure count for fresh attempts
 	consecutive_failed_recalcs = 0
+	
+	# Strategy 1: Try multiple fallback targets with wider search
+	var fallback_targets = _generate_enhanced_fallback_targets()
+	
+	for target_data in fallback_targets:
+		var target = target_data.position
+		var strategy = target_data.strategy
+		
+		print("Trying ", strategy, ": ", target)
+		if _internal_find_path_to(target):
+			print("Found alternative path using ", strategy)
+			return
+	
+	# Strategy 2: Try pathfinding to any reachable grid point
+	if _try_pathfind_to_any_reachable_point():
+		return
+	
+	# Strategy 3: Temporary pause and retry
+	print("All strategies exhausted - pausing and retrying")
+	_pause_for_obstacle_movement()
+
+func _try_pathfind_to_any_reachable_point() -> bool:
+	"""Try to pathfind to any reachable grid point as emergency movement"""
+	if not system:
+		return false
+	
+	print("Trying emergency pathfinding to any reachable point")
+	
+	# Get all clear grid points
+	var clear_points = []
+	for grid_pos in system.grid.keys():
+		if system.grid[grid_pos] and not system._is_circle_position_unsafe(grid_pos, agent_radius):
+			clear_points.append(grid_pos)
+	
+	# Sort by distance and try closest ones first
+	clear_points.sort_custom(func(a, b): return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
+	
+	# Try up to 20 closest points
+	var max_attempts = min(20, clear_points.size())
+	for i in max_attempts:
+		var test_target = clear_points[i]
+		if _internal_find_path_to(test_target):
+			print("Found emergency path to grid point: ", test_target)
+			# Update target_position to this emergency target
+			target_position = test_target
+			return true
+	
+	return false
+	
 
 func _generate_fallback_targets() -> Array[Vector2]:
 	"""Generate fallback target positions for alternative pathfinding"""
@@ -275,6 +516,67 @@ func _generate_fallback_targets() -> Array[Vector2]:
 	fallback_targets.sort_custom(func(a, b): return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
 	
 	return fallback_targets
+
+func _generate_enhanced_fallback_targets() -> Array:
+	"""Generate enhanced fallback targets with multiple strategies"""
+	var targets = []
+	var original_target = target_position
+	
+	# Multiple radii and denser sampling
+	var radii = [30.0, 60.0, 100.0, 150.0, 200.0]
+	var angle_counts = [8, 12, 16, 20, 24]
+	
+	for radius_idx in radii.size():
+		var radius = radii[radius_idx]
+		var angle_count = angle_counts[radius_idx]
+		
+		for i in angle_count:
+			var angle = (i * TAU) / angle_count
+			var test_pos = original_target + Vector2(cos(angle), sin(angle)) * radius
+			
+			# Check if position is valid before adding
+			if _is_point_in_polygon(test_pos, system.bounds_polygon):
+				targets.append({
+					"position": test_pos,
+					"strategy": "fallback_r" + str(radius)
+				})
+	
+	# Add random exploration points
+	for i in 10:
+		var bounds = system._get_bounds_rect()
+		var random_pos = Vector2(
+			randf_range(bounds.position.x, bounds.position.x + bounds.size.x),
+			randf_range(bounds.position.y, bounds.position.y + bounds.size.y)
+		)
+		
+		if _is_point_in_polygon(random_pos, system.bounds_polygon):
+			targets.append({
+				"position": random_pos,
+				"strategy": "random_exploration"
+			})
+	
+	# Sort by distance to current position (closer first)
+	targets.sort_custom(func(a, b): return global_position.distance_squared_to(a.position) < global_position.distance_squared_to(b.position))
+	
+	return targets
+
+func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
+	if polygon.size() < 3:
+		return true
+
+	var inside = false
+	var j = polygon.size() - 1
+
+	for i in polygon.size():
+		var pi = polygon[i]
+		var pj = polygon[j]
+
+		if ((pi.y > point.y) != (pj.y > point.y)) and \
+			(point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x):
+			inside = !inside
+		j = i
+
+	return inside
 
 func _update_stuck_detection(delta):
 	"""Monitor for stuck situations and handle recovery"""
@@ -368,15 +670,43 @@ func _try_emergency_movement():
 		unstuck_direction = Vector2.UP
 
 func find_path_to(destination: Vector2) -> bool:
+	"""Enhanced pathfinding with better error handling"""
 	if not system:
 		print("No pathfinding system available")
 		return false
 	
 	print("Pathfinder requesting path to: ", destination)
+	
+	# Try direct pathfinding first
 	var path = system.find_path_for_circle(global_position, destination, agent_radius)
 	
 	if path.is_empty():
-		print("Pathfinder: No path found")
+		print("Direct pathfinding failed, trying alternative strategies...")
+		
+		# Try finding path to nearby safe positions around destination
+		var nearby_targets = _generate_nearby_safe_positions(destination, 50.0, 12)
+		
+		for nearby_target in nearby_targets:
+			path = system.find_path_for_circle(global_position, nearby_target, agent_radius)
+			if not path.is_empty():
+				print("Found path to nearby target: ", nearby_target)
+				destination = nearby_target  # Update destination to reachable target
+				break
+		
+		# If still no path, try from nearby safe starting positions
+		if path.is_empty():
+			var safe_starts = _generate_nearby_safe_positions(global_position, 30.0, 8)
+			
+			for safe_start in safe_starts:
+				path = system.find_path_for_circle(safe_start, destination, agent_radius)
+				if not path.is_empty():
+					print("Found path from alternative start: ", safe_start)
+					# Insert movement to safe start position
+					path.insert(0, global_position)
+					break
+	
+	if path.is_empty():
+		print("All pathfinding strategies failed")
 		path_blocked.emit()
 		return false
 	
@@ -385,7 +715,7 @@ func find_path_to(destination: Vector2) -> bool:
 	path_index = 0
 	is_moving = true
 	
-	# Reset stuck detection and path validation
+	# Reset all state for fresh start
 	stuck_timer = 0.0
 	is_unsticking = false
 	last_positions.clear()
@@ -502,29 +832,47 @@ func _will_movement_cause_collision(target: Vector2, delta: float) -> bool:
 	return false
 
 func _handle_collision_avoidance(target: Vector2, delta: float):
-	"""Handle collision avoidance when direct movement is blocked"""
+	"""Enhanced collision avoidance with better fallback options"""
 	var direction_to_target = (target - global_position).normalized()
-	var perpendicular_dirs = [
-		Vector2(-direction_to_target.y, direction_to_target.x),
-		Vector2(direction_to_target.y, -direction_to_target.x)
+	
+	# Try sliding along obstacle edges
+	var slide_directions = [
+		Vector2(-direction_to_target.y, direction_to_target.x),  # Perpendicular left
+		Vector2(direction_to_target.y, -direction_to_target.x),  # Perpendicular right
+		direction_to_target.rotated(PI * 0.25),  # 45 degrees
+		direction_to_target.rotated(-PI * 0.25), # -45 degrees
+		direction_to_target.rotated(PI * 0.5),   # 90 degrees
+		direction_to_target.rotated(-PI * 0.5)   # -90 degrees
 	]
 	
-	for perp_dir in perpendicular_dirs:
-		var slide_movement = perp_dir * movement_speed * delta * 0.7
+	# Try each sliding direction
+	for slide_dir in slide_directions:
+		var slide_movement = slide_dir * movement_speed * delta * 0.6
 		var test_position = global_position + slide_movement
 		
 		if system and not system._is_circle_position_unsafe(test_position, agent_radius):
 			global_position = test_position
-			print("Applied collision avoidance sliding")
+			print("Applied collision avoidance sliding: ", slide_dir)
+			
+			# After successful slide, try to recalculate path
+			if randf() < 0.3:  # 30% chance to recalculate after slide
+				call_deferred("_attempt_path_recalculation")
+			
 			return
 	
-	var reduced_movement = direction_to_target * movement_speed * delta * 0.3
+	# If sliding failed, try smaller forward movement
+	var reduced_movement = direction_to_target * movement_speed * delta * 0.2
 	var test_position = global_position + reduced_movement
 	
 	if system and not system._is_circle_position_unsafe(test_position, agent_radius):
 		global_position = test_position
+		print("Applied reduced forward movement")
 	else:
-		_handle_stuck_situation()
+		# Instead of immediately calling stuck handler, try one more recalculation
+		if consecutive_failed_recalcs < max_failed_recalcs:
+			call_deferred("_attempt_path_recalculation")
+		else:
+			_handle_stuck_situation()
 
 func _calculate_corner_avoidance_force() -> Vector2:
 	"""Calculate force to avoid nearby corners"""

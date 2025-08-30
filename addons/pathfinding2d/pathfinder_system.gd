@@ -618,11 +618,26 @@ func _get_configuration_warnings() -> PackedStringArray:
 
 
 func _on_obstacle_changed():
-	"""Handle when a dynamic obstacle changes - Enhanced"""
-	print("Dynamic obstacle changed - marking grid as dirty")
+	"""Handle when a dynamic obstacle changes - Enhanced with aggressive path recalculation"""
+	print("Dynamic obstacle changed - triggering immediate path updates")
 	grid_dirty = true
-	# Force faster update for dynamic obstacles
-	last_grid_update = dynamic_update_rate * 0.8
+	
+	# Force immediate grid update for critical situations
+	if dynamic_obstacles.size() > 0:
+		_update_grid_for_dynamic_obstacles()
+		grid_dirty = false
+		last_grid_update = 0.0
+	
+	# Immediately trigger path recalculation for all moving pathfinders
+	for pathfinder in pathfinders:
+		if not is_instance_valid(pathfinder) or not pathfinder.is_moving:
+			continue
+		
+		# Reset their failure count to give them fresh attempts
+		pathfinder.consecutive_failed_recalcs = 0
+		
+		# Trigger immediate recalculation
+		pathfinder.call_deferred("_attempt_path_recalculation")
 
 func _on_immediate_obstacle_change(obstacle: PathfinderObstacle):
 	"""Handle immediate obstacle changes for fast-moving objects"""

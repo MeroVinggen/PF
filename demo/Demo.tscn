@@ -75,4 +75,6 @@ position = Vector2(129, 107)
 script = ExtResource("4_wlawv")
 path_validation_rate = null
 auto_recalculate = null
+fast_validation_mode = null
+validation_lookahead = null
 metadata/_custom_type_script = "uid://c0akywfx8v7xg"

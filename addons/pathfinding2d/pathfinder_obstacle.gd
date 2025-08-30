@@ -42,16 +42,20 @@ func _process(delta):
 	
 	_check_for_changes()
 
+
 func _check_for_changes():
-	"""Check if obstacle has moved or changed shape"""
+	"""Check if obstacle has moved or changed shape - Enhanced sensitivity"""
 	var current_transform = global_transform
-	var position_changed = last_position.distance_to(global_position) > 1.0
+	var position_changed = last_position.distance_to(global_position) > 0.5  # More sensitive
 	var polygon_changed = not _arrays_equal(obstacle_polygon, last_polygon)
 	var transform_changed = not _transforms_equal(last_transform, current_transform)
 	
 	if position_changed or polygon_changed or transform_changed:
 		_store_last_state()
 		obstacle_changed.emit()
+		# Force immediate notification for fast-moving obstacles
+		if system:
+			system._on_immediate_obstacle_change(self)
 
 func _store_last_state():
 	"""Store current state for change detection"""
@@ -60,21 +64,30 @@ func _store_last_state():
 	last_transform = global_transform
 
 func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
+	"""More sensitive array comparison"""
 	if a.size() != b.size():
 		return false
 	
+	var threshold = 0.1 if not is_static else 0.1
 	for i in a.size():
-		if a[i].distance_to(b[i]) > 0.1:
+		if a[i].distance_to(b[i]) > threshold:
 			return false
 	
 	return true
 
 func _transforms_equal(a: Transform2D, b: Transform2D) -> bool:
+	"""Much more sensitive transform comparison"""
 	var pos_diff = a.origin.distance_to(b.origin)
 	var rot_diff = abs(a.get_rotation() - b.get_rotation())
 	var scale_diff = (a.get_scale() - b.get_scale()).length()
 	
-	return pos_diff < 1.0 and rot_diff < 0.01 and scale_diff < 0.01
+	# Much tighter tolerances for dynamic obstacles
+	var pos_threshold = 0.5 if not is_static else 1.0
+	var rot_threshold = 0.005 if not is_static else 0.01
+	var scale_threshold = 0.01 if not is_static else 0.01
+	
+	return pos_diff < pos_threshold and rot_diff < rot_threshold and scale_diff < scale_threshold
+
 
 func get_world_polygon() -> PackedVector2Array:
 	var world_poly: PackedVector2Array = []

@@ -57,18 +57,24 @@ func _process(delta):
 	_update_dynamic_system(delta)
 
 func _update_dynamic_system(delta):
-	"""Update dynamic obstacle tracking and grid"""
+	"""Update dynamic obstacle tracking and grid - Enhanced"""
 	last_grid_update += delta
 	path_invalidation_timer += delta
 	
+	# More frequent updates when dynamic obstacles are present
+	var update_rate = dynamic_update_rate
+	if dynamic_obstacles.size() > 0:
+		update_rate *= 0.5  # Update twice as often
+	
 	# Update grid if dirty and enough time has passed
-	if grid_dirty and last_grid_update >= dynamic_update_rate:
+	if grid_dirty and last_grid_update >= update_rate:
 		_update_grid_for_dynamic_obstacles()
 		grid_dirty = false
 		last_grid_update = 0.0
 	
-	# Auto-invalidate paths periodically if we have dynamic obstacles
-	if auto_invalidate_paths and dynamic_obstacles.size() > 0 and path_invalidation_timer >= dynamic_update_rate * 2:
+	# More frequent path invalidation checks
+	var invalidation_rate = update_rate * 1.5
+	if auto_invalidate_paths and dynamic_obstacles.size() > 0 and path_invalidation_timer >= invalidation_rate:
 		_invalidate_affected_paths()
 		path_invalidation_timer = 0.0
 
@@ -160,14 +166,12 @@ func _get_dynamic_obstacles_bounds() -> Rect2:
 
 func _is_grid_point_clear(pos: Vector2) -> bool:
 	"""Check if a grid point is clear of all obstacles"""
+	# Don't apply agent_buffer here - that's handled in pathfinding
 	for obstacle in obstacles:
 		if not is_instance_valid(obstacle):
 			continue
 		
-		var world_poly = obstacle.get_world_polygon()
-		var distance = _distance_point_to_polygon(pos, world_poly)
-		
-		if distance < agent_buffer:
+		if obstacle.is_point_inside(pos):
 			return false
 	
 	return true
@@ -187,11 +191,6 @@ func _invalidate_affected_paths():
 	
 	if invalidated_count > 0:
 		print("Invalidated ", invalidated_count, " paths due to dynamic obstacles")
-
-func _on_obstacle_changed():
-	"""Handle when a dynamic obstacle changes"""
-	print("Dynamic obstacle changed - marking grid as dirty")
-	grid_dirty = true
 
 func register_obstacle(obstacle: PathfinderObstacle):
 	if obstacle not in obstacles:
@@ -356,34 +355,37 @@ func _find_safe_circle_position(pos: Vector2, radius: float) -> Vector2:
 	"""Find a safe grid position for a circle"""
 	var snapped = _snap_to_grid(pos)
 	
-	if grid.has(snapped) and grid[snapped] and not _is_circle_position_unsafe(snapped, radius):
+	if grid.has(snapped) and not _is_circle_position_unsafe(snapped, radius):
 		return snapped
 	
-	# Search for alternative position
-	var search_radius = grid_size * 8
-	var best_pos = Vector2.INF
-	var best_score = -INF
+	# Search for alternative position with expanding search radius
+	var search_radiuses = [grid_size * 2, grid_size * 4, grid_size * 8, grid_size * 12]
 	
-	for grid_pos in grid.keys():
-		if not grid[grid_pos]:  # Skip blocked grid points
-			continue
-			
-		var distance = pos.distance_to(grid_pos)
-		if distance > search_radius:
-			continue
-			
-		if _is_circle_position_unsafe(grid_pos, radius):
-			continue
+	for search_radius in search_radiuses:
+		var best_pos = Vector2.INF
+		var best_score = -INF
 		
-		# Calculate score (prefer closer positions with good clearance)
-		var safety_score = _calculate_circle_safety_score(grid_pos, radius)
-		var total_score = safety_score - (distance * 0.01)
+		for grid_pos in grid.keys():
+			var distance = pos.distance_to(grid_pos)
+			if distance > search_radius:
+				continue
+				
+			if _is_circle_position_unsafe(grid_pos, radius):
+				continue
+			
+			# Calculate score (prefer closer positions with good clearance)
+			var safety_score = _calculate_circle_safety_score(grid_pos, radius)
+			var total_score = safety_score - (distance * 0.01)
+			
+			if total_score > best_score:
+				best_pos = grid_pos
+				best_score = total_score
 		
-		if total_score > best_score:
-			best_pos = grid_pos
-			best_score = total_score
+		if best_pos != Vector2.INF:
+			return best_pos
 	
-	return best_pos
+	print("Warning: Could not find safe position for radius ", radius, " near ", pos)
+	return Vector2.INF
 
 func _calculate_circle_safety_score(pos: Vector2, radius: float) -> float:
 	"""Calculate safety score for a circle position"""
@@ -613,3 +615,94 @@ func _get_configuration_warnings() -> PackedStringArray:
 		warnings.append("Too many dynamic obstacles may impact performance")
 	
 	return warnings
+
+
+func _on_obstacle_changed():
+	"""Handle when a dynamic obstacle changes - Enhanced"""
+	print("Dynamic obstacle changed - marking grid as dirty")
+	grid_dirty = true
+	# Force faster update for dynamic obstacles
+	last_grid_update = dynamic_update_rate * 0.8
+
+func _on_immediate_obstacle_change(obstacle: PathfinderObstacle):
+	"""Handle immediate obstacle changes for fast-moving objects"""
+	print("Immediate obstacle change detected for: ", obstacle.name)
+	
+	# Immediately check and invalidate affected paths
+	var affected_pathfinders = _get_pathfinders_affected_by_obstacle(obstacle)
+	for pathfinder in affected_pathfinders:
+		if pathfinder.is_moving and pathfinder.current_path.size() > 0:
+			print("Immediately invalidating path for pathfinder: ", pathfinder.name)
+			pathfinder.path_invalidated.emit()
+			if pathfinder.auto_recalculate:
+				# Use call_deferred to avoid conflicts
+				pathfinder.call_deferred("_attempt_path_recalculation")
+	
+	# Force immediate partial grid update around this obstacle
+	_update_grid_around_obstacle(obstacle)
+
+func _get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array[Pathfinder]:
+	"""Get pathfinders whose paths might be affected by this obstacle"""
+	var affected: Array[Pathfinder] = []
+	var world_poly = obstacle.get_world_polygon()
+	var obstacle_bounds = _get_polygon_bounds(world_poly)
+	
+	# Expand bounds to account for agent sizes
+	obstacle_bounds = obstacle_bounds.grow(50.0)  # Conservative expansion
+	
+	for pathfinder in pathfinders:
+		if not is_instance_valid(pathfinder) or not pathfinder.is_moving:
+			continue
+		
+		# Check if pathfinder's current path intersects obstacle area
+		var path = pathfinder.get_current_path()
+		for i in range(pathfinder.path_index, path.size()):
+			if obstacle_bounds.has_point(path[i]):
+				affected.append(pathfinder)
+				break
+			
+			# Also check path segments
+			if i < path.size() - 1:
+				var segment_bounds = Rect2()
+				segment_bounds = segment_bounds.expand(path[i])
+				segment_bounds = segment_bounds.expand(path[i + 1])
+				if segment_bounds.intersects(obstacle_bounds):
+					affected.append(pathfinder)
+					break
+	
+	return affected
+
+func _update_grid_around_obstacle(obstacle: PathfinderObstacle):
+	"""Update grid points around a specific obstacle"""
+	var world_poly = obstacle.get_world_polygon()
+	var obstacle_bounds = _get_polygon_bounds(world_poly)
+	
+	# Expand bounds for agent clearance
+	obstacle_bounds = obstacle_bounds.grow(grid_size * 3)
+	
+	var updated_count = 0
+	for grid_pos in grid.keys():
+		if obstacle_bounds.has_point(grid_pos):
+			var old_value = grid[grid_pos]
+			var new_value = _is_grid_point_clear(grid_pos)
+			if old_value != new_value:
+				grid[grid_pos] = new_value
+				updated_count += 1
+	
+	print("Updated ", updated_count, " grid points around obstacle: ", obstacle.name)
+
+func _get_polygon_bounds(polygon: PackedVector2Array) -> Rect2:
+	"""Get bounding rectangle of a polygon"""
+	if polygon.is_empty():
+		return Rect2()
+	
+	var min_pos = polygon[0]
+	var max_pos = polygon[0]
+	
+	for point in polygon:
+		min_pos.x = min(min_pos.x, point.x)
+		min_pos.y = min(min_pos.y, point.y)
+		max_pos.x = max(max_pos.x, point.x)
+		max_pos.y = max(max_pos.y, point.y)
+	
+	return Rect2(min_pos, max_pos - min_pos)

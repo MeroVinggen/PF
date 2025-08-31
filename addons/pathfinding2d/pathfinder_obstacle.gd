@@ -26,6 +26,30 @@ func _ready():
 		_find_system()
 		_store_last_state()
 
+func _has_changed() -> bool:
+	var pos_changed = last_position.distance_to(global_position) > 0.5
+	var poly_changed = obstacle_polygon.size() != last_polygon.size()
+	if not poly_changed:
+		var threshold = 0.1
+		for i in obstacle_polygon.size():
+			if obstacle_polygon[i].distance_to(last_polygon[i]) > threshold:
+				poly_changed = true
+				break
+	
+	var transform_changed = false
+	if not _transforms_roughly_equal(last_transform, global_transform):
+		transform_changed = true
+	
+	return pos_changed or poly_changed or transform_changed
+
+func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
+	var pos_threshold = 0.5 if not is_static else 1.0
+	var rot_threshold = 0.005 if not is_static else 0.01
+	
+	return (a.origin.distance_to(b.origin) < pos_threshold and 
+			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and
+			(a.get_scale() - b.get_scale()).length() < 0.01)
+
 func _find_system():
 	system = get_tree().get_first_node_in_group("pathfinder_systems") as PathfinderSystem
 	if system:
@@ -44,18 +68,11 @@ func _process(delta):
 
 
 func _check_for_changes():
-	"""Check if obstacle has moved or changed shape - Enhanced sensitivity"""
-	var current_transform = global_transform
-	var position_changed = last_position.distance_to(global_position) > 0.5  # More sensitive
-	var polygon_changed = not _arrays_equal(obstacle_polygon, last_polygon)
-	var transform_changed = not _transforms_equal(last_transform, current_transform)
-	
-	if position_changed or polygon_changed or transform_changed:
+	if _has_changed():
 		_store_last_state()
 		obstacle_changed.emit()
-		# Force immediate notification for fast-moving obstacles
 		if system:
-			system._on_immediate_obstacle_change(self)
+			system._on_obstacle_changed()
 
 func _store_last_state():
 	"""Store current state for change detection"""

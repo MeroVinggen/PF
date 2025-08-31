@@ -83,14 +83,45 @@ func _update_path_validation(delta):
 		return
 	
 	path_validation_timer += delta
-	
 	if path_validation_timer >= path_validation_rate:
 		path_validation_timer = 0.0
 		
 		if not _is_current_path_safe():
-			print("Path invalid - attempting recalculation")
 			path_invalidated.emit()
-			_attempt_path_recalculation()
+			_recalculate_or_find_alternative()
+
+func _recalculate_or_find_alternative():
+	consecutive_failed_recalcs += 1
+	
+	if consecutive_failed_recalcs >= max_failed_recalcs:
+		_pause_and_retry()
+		return
+	
+	if system.is_grid_dirty():
+		system.force_grid_update()
+	
+	var path = system.find_path_for_circle(global_position, target_position, agent_radius)
+	
+	if path.is_empty():
+		# Try nearby positions
+		var angles = [0, PI/4, PI/2, 3*PI/4, PI, 5*PI/4, 3*PI/2, 7*PI/4]
+		for angle in angles:
+			var offset = Vector2(cos(angle), sin(angle)) * (agent_radius * 3)
+			var test_pos = target_position + offset
+			if _is_point_in_bounds(test_pos) and not system._is_circle_position_unsafe(test_pos, agent_radius):
+				path = system.find_path_for_circle(global_position, test_pos, agent_radius)
+				if not path.is_empty():
+					target_position = test_pos
+					break
+		
+		if path.is_empty():
+			_pause_and_retry()
+			return
+	
+	current_path = path
+	path_index = 0
+	consecutive_failed_recalcs = 0
+	path_recalculated.emit()
 
 # SIMPLIFIED: Basic path safety check
 func _is_current_path_safe() -> bool:
@@ -197,7 +228,6 @@ func _update_stuck_detection(delta):
 		return
 	
 	var movement = last_positions[-1].distance_to(last_positions[0])
-	
 	if movement < stuck_threshold:
 		stuck_timer += delta
 		if stuck_timer >= stuck_time_threshold:
@@ -209,11 +239,9 @@ func _update_stuck_detection(delta):
 			agent_unstuck.emit()
 
 func _handle_stuck():
-	print("Agent stuck - attempting recovery")
 	agent_stuck.emit()
 	is_unsticking = true
 	
-	# Try simple directions
 	var directions = [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]
 	directions.shuffle()
 	
@@ -223,9 +251,8 @@ func _handle_stuck():
 			unstuck_direction = direction
 			return
 	
-	# Force recalculation
 	consecutive_failed_recalcs = 0
-	_attempt_path_recalculation()
+	_recalculate_or_find_alternative()
 
 func find_path_to(destination: Vector2) -> bool:
 	if not system:

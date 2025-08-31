@@ -64,31 +64,25 @@ func _demo_oscillating_obstacle(delta):
 
 # UPDATED: Simplified debug UI function
 func _update_debug_ui():
-	"""Update debug information display"""
 	var label = get_node_or_null("DebugLabel") as Label
 	if not label:
 		return
 	
-	var info_text = ""
+	var info = []
 	
 	if pathfinder_system:
-		info_text += "Grid Points: " + str(pathfinder_system.grid.size()) + "\n"
-		info_text += "Dynamic Obstacles: " + str(pathfinder_system.get_dynamic_obstacle_count()) + "\n"
-		info_text += "Grid Dirty: " + str(pathfinder_system.is_grid_dirty()) + "\n"
+		info.append("Grid: " + str(pathfinder_system.grid.size()))
+		info.append("Dynamic: " + str(pathfinder_system.get_dynamic_obstacle_count()))
+		info.append("Dirty: " + str(pathfinder_system.is_grid_dirty()))
 	
 	if pathfinder:
-		info_text += "Agent Moving: " + str(pathfinder.is_moving) + "\n"
-		info_text += "Path Valid: " + str(pathfinder.is_path_valid()) + "\n"
-		# REMOVED: get_path_validation_progress() - function no longer exists
-		info_text += "Failed Recalcs: " + str(pathfinder.consecutive_failed_recalcs) + "\n"
-		# UPDATED: Use is_stuck() instead of get_stuck_progress()
-		info_text += "Agent Stuck: " + str(pathfinder.is_stuck()) + "\n"
-		info_text += "Distance to Target: " + str(int(pathfinder.get_distance_to_target())) + "\n"
-		info_text += "Distance to Destination: " + str(int(pathfinder.get_distance_to_destination())) + "\n"
+		info.append("Moving: " + str(pathfinder.is_moving))
+		info.append("Valid: " + str(pathfinder.is_path_valid()))
+		info.append("Failures: " + str(pathfinder.consecutive_failed_recalcs))
+		info.append("Stuck: " + str(pathfinder.is_stuck()))
 	
-	info_text += "\n\nControls: LClick=Move, RClick=MoveObstacle, R=Update"
-	
-	label.text = info_text
+	info.append("\nLClick=Move, RClick=MoveObstacle, R=Update")
+	label.text = "\n".join(info)
 
 func _input(event):
 	if event is InputEventMouseButton and event.pressed:

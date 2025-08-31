@@ -56,18 +56,21 @@ func _update_dynamic_system(delta):
 	last_grid_update += delta
 	path_invalidation_timer += delta
 	
-	var update_rate = dynamic_update_rate
-	if dynamic_obstacles.size() > 0:
-		update_rate *= 0.5
+	var should_update_grid = grid_dirty and last_grid_update >= dynamic_update_rate
+	var should_invalidate_paths = auto_invalidate_paths and path_invalidation_timer >= dynamic_update_rate * 2
 	
-	if grid_dirty and last_grid_update >= update_rate:
+	if should_update_grid:
 		_update_grid_for_dynamic_obstacles()
 		grid_dirty = false
 		last_grid_update = 0.0
 	
-	if auto_invalidate_paths and dynamic_obstacles.size() > 0 and path_invalidation_timer >= update_rate * 2:
+	if should_invalidate_paths and _has_dynamic_obstacles():
 		_invalidate_affected_paths()
 		path_invalidation_timer = 0.0
+
+func _has_dynamic_obstacles() -> bool:
+	return obstacles.any(func(o): return is_instance_valid(o) and not o.is_static)
+
 
 func _initialize_system():
 	_build_grid()
@@ -116,22 +119,18 @@ func _update_grid_for_dynamic_obstacles():
 
 # SIMPLIFIED: Get bounds of dynamic obstacles
 func _get_dynamic_obstacles_bounds() -> Rect2:
-	if dynamic_obstacles.is_empty():
+	var dynamic_obs = obstacles.filter(func(o): return is_instance_valid(o) and not o.is_static)
+	if dynamic_obs.is_empty():
 		return Rect2()
 	
 	var min_pos = Vector2(INF, INF)
 	var max_pos = Vector2(-INF, -INF)
 	
-	for obstacle in dynamic_obstacles:
-		if not is_instance_valid(obstacle):
-			continue
-		
+	for obstacle in dynamic_obs:
 		var world_poly = obstacle.get_world_polygon()
 		for point in world_poly:
-			min_pos.x = min(min_pos.x, point.x)
-			min_pos.y = min(min_pos.y, point.y)
-			max_pos.x = max(max_pos.x, point.x)
-			max_pos.y = max(max_pos.y, point.y)
+			min_pos = min_pos.min(point)
+			max_pos = max_pos.max(point)
 	
 	var buffer = grid_size * 2
 	return Rect2(min_pos - Vector2(buffer, buffer), (max_pos - min_pos) + Vector2(buffer * 2, buffer * 2))
@@ -148,13 +147,14 @@ func _invalidate_affected_paths():
 			pathfinder.recalculate_path()
 
 func register_obstacle(obstacle: PathfinderObstacle):
-	if obstacle not in obstacles:
-		obstacles.append(obstacle)
-		
-		if not obstacle.is_static:
-			dynamic_obstacles.append(obstacle)
-			if obstacle.has_signal("obstacle_changed") and not obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
-				obstacle.obstacle_changed.connect(_on_obstacle_changed)
+	if obstacle in obstacles:
+		return
+	
+	obstacles.append(obstacle)
+	
+	if not obstacle.is_static:
+		if obstacle.has_signal("obstacle_changed") and not obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
+			obstacle.obstacle_changed.connect(_on_obstacle_changed)
 
 func unregister_obstacle(obstacle: PathfinderObstacle):
 	obstacles.erase(obstacle)
@@ -447,7 +447,8 @@ func _find_obstacle_corners(polygon: PackedVector2Array) -> Array[Vector2]:
 
 # Utility functions
 func get_dynamic_obstacle_count() -> int:
-	return dynamic_obstacles.size()
+	return obstacles.filter(func(o): return is_instance_valid(o) and not o.is_static).size()
+
 
 func is_grid_dirty() -> bool:
 	return grid_dirty
@@ -461,12 +462,10 @@ func force_grid_update():
 # SIMPLIFIED: Single obstacle change handler
 func _on_obstacle_changed():
 	grid_dirty = true
-	
-	# Immediately invalidate affected paths
 	for pathfinder in pathfinders:
 		if is_instance_valid(pathfinder) and pathfinder.is_moving:
-			pathfinder.consecutive_failed_recalcs = 0  # Reset failure count
-			pathfinder.call_deferred("_attempt_path_recalculation")
+			pathfinder.consecutive_failed_recalcs = 0
+			pathfinder.call_deferred("_recalculate_or_find_alternative")
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

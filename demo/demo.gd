@@ -47,7 +47,6 @@ func _setup_demo_ui():
 func _process(delta):
 	_update_debug_ui()
 
-
 func _demo_oscillating_obstacle(delta):
 	"""Move dynamic obstacle back and forth"""
 	if not dynamic_obstacle:
@@ -63,7 +62,7 @@ func _demo_oscillating_obstacle(delta):
 	if dynamic_obstacle.global_position.y > 500 or dynamic_obstacle.global_position.y < 100:
 		obstacle_direction.y *= -1
 
-
+# UPDATED: Simplified debug UI function
 func _update_debug_ui():
 	"""Update debug information display"""
 	var label = get_node_or_null("DebugLabel") as Label
@@ -80,9 +79,12 @@ func _update_debug_ui():
 	if pathfinder:
 		info_text += "Agent Moving: " + str(pathfinder.is_moving) + "\n"
 		info_text += "Path Valid: " + str(pathfinder.is_path_valid()) + "\n"
-		info_text += "Validation Progress: " + str(int(pathfinder.get_path_validation_progress() * 100)) + "%\n"
-		info_text += "Failed Recalcs: " + str(pathfinder.get_failed_recalc_count()) + "\n"
-		info_text += "Stuck Progress: " + str(int(pathfinder.get_stuck_progress() * 100)) + "%\n"
+		# REMOVED: get_path_validation_progress() - function no longer exists
+		info_text += "Failed Recalcs: " + str(pathfinder.consecutive_failed_recalcs) + "\n"
+		# UPDATED: Use is_stuck() instead of get_stuck_progress()
+		info_text += "Agent Stuck: " + str(pathfinder.is_stuck()) + "\n"
+		info_text += "Distance to Target: " + str(int(pathfinder.get_distance_to_target())) + "\n"
+		info_text += "Distance to Destination: " + str(int(pathfinder.get_distance_to_destination())) + "\n"
 	
 	info_text += "\n\nControls: LClick=Move, RClick=MoveObstacle, R=Update"
 	
@@ -131,8 +133,6 @@ func _force_grid_update():
 	else:
 		print("No pathfinder system available")
 
-
-
 # Signal handlers
 func _on_path_found(path: PackedVector2Array):
 	print("✓ Path found with ", path.size(), " waypoints")
@@ -155,7 +155,7 @@ func _on_path_invalidated():
 func _on_path_recalculated():
 	print("✓ Path successfully recalculated")
 
-# Demo scenario functions
+# UPDATED: Simplified stress test function
 func _start_stress_test():
 	"""Start a stress test with multiple moving obstacles"""
 	print("Starting pathfinding stress test...")
@@ -229,23 +229,19 @@ func _draw():
 				draw_circle(pos, 2.0, color * 0.3)
 			i += 1
 	
-	# Draw dynamic obstacle influence areas
+	# UPDATED: Simplified dynamic obstacle visualization
 	for obstacle in pathfinder_system.dynamic_obstacles:
 		if not is_instance_valid(obstacle):
 			continue
 		
 		var world_poly = obstacle.get_world_polygon()
 		if world_poly.size() >= 3:
-			# Draw influence area
-			var expanded_poly = PackedVector2Array()
-			for point in world_poly:
-				var center = _get_polygon_center(world_poly)
-				var direction = (point - center).normalized()
-				expanded_poly.append(point + direction * pathfinder_system.agent_buffer)
-			
-			if expanded_poly.size() >= 3:
-				draw_colored_polygon(expanded_poly, Color.ORANGE * 0.1)
+			# Draw simple influence circle instead of complex polygon expansion
+			var center = _get_polygon_center(world_poly)
+			var radius = _get_polygon_max_radius(world_poly, center)
+			draw_arc(center, radius + pathfinder_system.agent_buffer, 0, TAU, 32, Color.ORANGE * 0.5, 2.0)
 
+# UPDATED: Simplified helper functions
 func _get_polygon_center(polygon: PackedVector2Array) -> Vector2:
 	"""Calculate the center point of a polygon"""
 	if polygon.is_empty():
@@ -256,3 +252,13 @@ func _get_polygon_center(polygon: PackedVector2Array) -> Vector2:
 		sum += point
 	
 	return sum / polygon.size()
+
+func _get_polygon_max_radius(polygon: PackedVector2Array, center: Vector2) -> float:
+	"""Get maximum distance from center to any polygon vertex"""
+	var max_radius = 0.0
+	
+	for point in polygon:
+		var distance = center.distance_to(point)
+		max_radius = max(max_radius, distance)
+	
+	return max_radius

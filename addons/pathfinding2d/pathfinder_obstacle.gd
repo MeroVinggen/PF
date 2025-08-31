@@ -80,31 +80,6 @@ func _store_last_state():
 	last_polygon = obstacle_polygon.duplicate()
 	last_transform = global_transform
 
-func _arrays_equal(a: PackedVector2Array, b: PackedVector2Array) -> bool:
-	"""More sensitive array comparison"""
-	if a.size() != b.size():
-		return false
-	
-	var threshold = 0.1 if not is_static else 0.1
-	for i in a.size():
-		if a[i].distance_to(b[i]) > threshold:
-			return false
-	
-	return true
-
-func _transforms_equal(a: Transform2D, b: Transform2D) -> bool:
-	"""Much more sensitive transform comparison"""
-	var pos_diff = a.origin.distance_to(b.origin)
-	var rot_diff = abs(a.get_rotation() - b.get_rotation())
-	var scale_diff = (a.get_scale() - b.get_scale()).length()
-	
-	# Much tighter tolerances for dynamic obstacles
-	var pos_threshold = 0.5 if not is_static else 1.0
-	var rot_threshold = 0.005 if not is_static else 0.01
-	var scale_threshold = 0.01 if not is_static else 0.01
-	
-	return pos_diff < pos_threshold and rot_diff < rot_threshold and scale_diff < scale_threshold
-
 
 func get_world_polygon() -> PackedVector2Array:
 	var world_poly: PackedVector2Array = []

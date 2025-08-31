@@ -11,7 +11,6 @@ class_name PathfinderSystem
 
 @export var grid_size: float = 25.0
 @export var agent_buffer: float = 5.0
-@export var max_corner_angle: float = 120.0
 @export var dynamic_update_rate: float = 0.1
 @export var auto_invalidate_paths: bool = true
 
@@ -420,30 +419,7 @@ func _reconstruct_path(came_from_dict: Dictionary, current: Vector2, start: Vect
 	path.reverse()
 	return path
 
-func _find_obstacle_corners(polygon: PackedVector2Array) -> Array[Vector2]:
-	var corners: Array[Vector2] = []
-	
-	if polygon.size() < 3:
-		return corners
-	
-	for i in polygon.size():
-		var prev_idx = (i - 1 + polygon.size()) % polygon.size()
-		var next_idx = (i + 1) % polygon.size()
-		
-		var prev_point = polygon[prev_idx]
-		var current_point = polygon[i]
-		var next_point = polygon[next_idx]
-		
-		var vec1 = (prev_point - current_point).normalized()
-		var vec2 = (next_point - current_point).normalized()
-		
-		var angle_rad = vec1.angle_to(vec2)
-		var angle_deg = abs(rad_to_deg(angle_rad))
-		
-		if angle_deg < max_corner_angle:
-			corners.append(current_point)
-	
-	return corners
+
 
 # Utility functions
 func get_dynamic_obstacle_count() -> int:

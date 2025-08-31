@@ -103,7 +103,7 @@ func _recalculate_or_find_alternative():
 	var path = system.find_path_for_circle(global_position, target_position, agent_radius)
 	
 	if path.is_empty():
-		# Try nearby positions
+		# Try nearby positions around target
 		var angles = [0, PI/4, PI/2, 3*PI/4, PI, 5*PI/4, 3*PI/2, 7*PI/4]
 		for angle in angles:
 			var offset = Vector2(cos(angle), sin(angle)) * (agent_radius * 3)
@@ -140,51 +140,6 @@ func _is_current_path_safe() -> bool:
 			return false
 	
 	return true
-
-# SIMPLIFIED: Single recalculation attempt function
-func _attempt_path_recalculation():
-	if consecutive_failed_recalcs >= max_failed_recalcs:
-		print("Too many failures, pausing...")
-		_pause_and_retry()
-		return
-	
-	consecutive_failed_recalcs += 1
-	
-	if system.is_grid_dirty():
-		system.force_grid_update()
-	
-	var path = system.find_path_for_circle(global_position, target_position, agent_radius)
-	
-	if not path.is_empty():
-		current_path = path
-		path_index = 0
-		consecutive_failed_recalcs = 0
-		path_recalculated.emit()
-		print("Path recalculated successfully")
-	else:
-		print("Recalculation failed, trying alternatives...")
-		_try_alternative_solutions()
-
-# SIMPLIFIED: Alternative solutions
-func _try_alternative_solutions():
-	# Try nearby positions around target
-	var angles = [0, PI/4, PI/2, 3*PI/4, PI, 5*PI/4, 3*PI/2, 7*PI/4]
-	
-	for angle in angles:
-		var offset = Vector2(cos(angle), sin(angle)) * (agent_radius * 3)
-		var test_pos = target_position + offset
-		
-		if _is_point_in_bounds(test_pos) and not system._is_circle_position_unsafe(test_pos, agent_radius):
-			var path = system.find_path_for_circle(global_position, test_pos, agent_radius)
-			if not path.is_empty():
-				current_path = path
-				path_index = 0
-				target_position = test_pos
-				consecutive_failed_recalcs = 0
-				print("Found alternative path")
-				return
-	
-	_pause_and_retry()
 
 func _pause_and_retry():
 	is_moving = false
@@ -352,7 +307,7 @@ func is_path_valid() -> bool:
 
 func recalculate_path():
 	if is_moving:
-		_attempt_path_recalculation()
+		_recalculate_or_find_alternative()
 
 func _draw() -> void:
 	if not debug_draw:

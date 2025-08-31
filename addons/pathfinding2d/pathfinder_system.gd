@@ -63,30 +63,15 @@ func _update_dynamic_system(delta):
 		grid_dirty = false
 		last_grid_update = 0.0
 	
-	if should_invalidate_paths and _has_dynamic_obstacles():
+	# Inline the _has_dynamic_obstacles() check
+	if should_invalidate_paths and obstacles.any(func(o): return is_instance_valid(o) and not o.is_static):
 		_invalidate_affected_paths()
 		path_invalidation_timer = 0.0
-
-func _has_dynamic_obstacles() -> bool:
-	return obstacles.any(func(o): return is_instance_valid(o) and not o.is_static)
 
 
 func _initialize_system():
 	_build_grid()
-	_find_and_register_obstacles()
-	_find_and_register_pathfinders()
 
-func _find_and_register_obstacles():
-	var obstacle_nodes = get_tree().get_nodes_in_group("pathfinder_obstacles")
-	for obstacle in obstacle_nodes:
-		if obstacle is PathfinderObstacle:
-			register_obstacle(obstacle)
-
-func _find_and_register_pathfinders():
-	var pathfinder_nodes = get_tree().get_nodes_in_group("pathfinders")
-	for pathfinder in pathfinder_nodes:
-		if pathfinder is Pathfinder:
-			register_pathfinder(pathfinder)
 
 func _build_grid():
 	grid.clear()
@@ -118,6 +103,7 @@ func _update_grid_for_dynamic_obstacles():
 
 # SIMPLIFIED: Get bounds of dynamic obstacles
 func _get_dynamic_obstacles_bounds() -> Rect2:
+	# Filter dynamic obstacles inline instead of using separate array
 	var dynamic_obs = obstacles.filter(func(o): return is_instance_valid(o) and not o.is_static)
 	if dynamic_obs.is_empty():
 		return Rect2()
@@ -157,7 +143,6 @@ func register_obstacle(obstacle: PathfinderObstacle):
 
 func unregister_obstacle(obstacle: PathfinderObstacle):
 	obstacles.erase(obstacle)
-	dynamic_obstacles.erase(obstacle)
 
 func register_pathfinder(pathfinder: Pathfinder):
 	if pathfinder not in pathfinders:

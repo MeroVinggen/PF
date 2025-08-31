@@ -393,14 +393,5 @@ func _draw() -> void:
 		var arrow_end = unstuck_direction * 20
 		draw_line(Vector2.ZERO, arrow_end, Color.RED, 3.0)
 
-# Helper functions
-func get_distance_to_target() -> float:
-	if current_path.is_empty() or path_index >= current_path.size():
-		return 0.0
-	return global_position.distance_to(current_path[path_index])
-
-func get_distance_to_destination() -> float:
-	return global_position.distance_to(target_position) if target_position != Vector2.ZERO else 0.0
-
 func is_stuck() -> bool:
 	return stuck_timer >= stuck_time_threshold

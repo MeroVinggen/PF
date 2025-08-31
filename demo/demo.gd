@@ -6,10 +6,6 @@ extends Node2D
 @onready var dynamic_obstacle = $PathfinderObstacleD
 @onready var static_obstacle = $PathfinderObstacleS
 
-# Demo control variables
-var obstacle_move_speed: float = 50.0
-var obstacle_direction: Vector2 = Vector2.RIGHT
-
 func _ready():
 	print("=== Enhanced Pathfinding Demo Starting ===")
 	
@@ -46,21 +42,6 @@ func _setup_demo_ui():
 
 func _process(delta):
 	_update_debug_ui()
-
-func _demo_oscillating_obstacle(delta):
-	"""Move dynamic obstacle back and forth"""
-	if not dynamic_obstacle:
-		return
-	
-	var movement = obstacle_direction * obstacle_move_speed * delta
-	dynamic_obstacle.global_position += movement
-	
-	# Reverse direction at boundaries
-	if dynamic_obstacle.global_position.x > 600 or dynamic_obstacle.global_position.x < 100:
-		obstacle_direction.x *= -1
-	
-	if dynamic_obstacle.global_position.y > 500 or dynamic_obstacle.global_position.y < 100:
-		obstacle_direction.y *= -1
 
 # UPDATED: Simplified debug UI function
 func _update_debug_ui():
@@ -149,56 +130,6 @@ func _on_path_invalidated():
 func _on_path_recalculated():
 	print("✓ Path successfully recalculated")
 
-# UPDATED: Simplified stress test function
-func _start_stress_test():
-	"""Start a stress test with multiple moving obstacles"""
-	print("Starting pathfinding stress test...")
-	
-	# Create multiple dynamic obstacles
-	for i in range(3):
-		var new_obstacle = preload("res://addons/pathfinding2d/pathfinder_obstacle.gd").new()
-		new_obstacle.is_static = false
-		new_obstacle.obstacle_polygon = PackedVector2Array([
-			Vector2(-15, -15), Vector2(15, -15), 
-			Vector2(15, 15), Vector2(-15, 15)
-		])
-		new_obstacle.global_position = Vector2(200 + i * 100, 200 + i * 50)
-		add_child(new_obstacle)
-		
-		# Make them move in different patterns
-		var tween = create_tween()
-		tween.set_loops()
-		var target1 = Vector2(100 + i * 150, 150)
-		var target2 = Vector2(500 - i * 100, 400)
-		tween.tween_property(new_obstacle, "global_position", target1, 2.0 + i * 0.5)
-		tween.tween_property(new_obstacle, "global_position", target2, 2.0 + i * 0.5)
-	
-	# Start pathfinder moving in a complex pattern
-	if pathfinder:
-		_complex_movement_pattern()
-
-func _complex_movement_pattern():
-	"""Make pathfinder follow a complex movement pattern"""
-	var targets = [
-		Vector2(100, 100), Vector2(600, 100),
-		Vector2(600, 500), Vector2(100, 500),
-		Vector2(350, 300)
-	]
-	
-	_move_through_targets(targets, 0)
-
-func _move_through_targets(targets: Array, index: int):
-	"""Recursively move through a series of targets"""
-	if index >= targets.size():
-		index = 0  # Loop back to start
-	
-	pathfinder.move_to(targets[index])
-	
-	# Wait for destination to be reached, then move to next target
-	await pathfinder.destination_reached
-	await get_tree().create_timer(1.0).timeout  # Brief pause
-	
-	_move_through_targets(targets, index + 1)
 
 func _draw():
 	"""Draw additional debug information"""

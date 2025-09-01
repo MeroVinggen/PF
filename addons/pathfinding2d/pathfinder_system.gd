@@ -173,7 +173,13 @@ func _on_obstacle_static_changed(is_now_static: bool, obstacle: PathfinderObstac
 
 func unregister_obstacle(obstacle: PathfinderObstacle):
 	obstacles.erase(obstacle)
+	dynamic_obstacles.erase(obstacle)
 	obstacle.system = null
+	
+	if obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
+		obstacle.obstacle_changed.disconnect(_on_obstacle_changed)
+	if obstacle.static_state_changed.is_connected(_on_obstacle_static_changed):
+		obstacle.static_state_changed.disconnect(_on_obstacle_static_changed)
 
 func register_pathfinder(pathfinder: Pathfinder):
 	if pathfinder not in pathfinders:

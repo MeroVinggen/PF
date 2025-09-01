@@ -1,46 +1,9 @@
-[gd_scene load_steps=8 format=3 uid="uid://b4ha7wyhvby2n"]
+[gd_scene load_steps=5 format=3 uid="uid://b4ha7wyhvby2n"]
 
 [ext_resource type="Script" uid="uid://cwh8y4ydbcsfn" path="res://demo/demo.gd" id="1_uqdso"]
 [ext_resource type="Script" uid="uid://iy0w45a50gju" path="res://addons/pathfinding2d/pathfinder_system.gd" id="2_umghc"]
 [ext_resource type="Script" uid="uid://dsw8ahtan3evv" path="res://addons/pathfinding2d/pathfinder_obstacle.gd" id="3_eaos1"]
 [ext_resource type="Script" uid="uid://c0akywfx8v7xg" path="res://addons/pathfinding2d/pathfinder.gd" id="4_wlawv"]
-
-[sub_resource type="Animation" id="Animation_eaos1"]
-length = 0.001
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath(".:position")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 0,
-"values": [Vector2(310, 247)]
-}
-
-[sub_resource type="Animation" id="Animation_umghc"]
-resource_name = "move"
-loop_mode = 2
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath(".:position")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 1),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [Vector2(310, 247), Vector2(310, 165)]
-}
-
-[sub_resource type="AnimationLibrary" id="AnimationLibrary_wlawv"]
-_data = {
-&"RESET": SubResource("Animation_eaos1"),
-&"move": SubResource("Animation_umghc")
-}
 
 [node name="Demo" type="Node2D"]
 script = ExtResource("1_uqdso")
@@ -56,12 +19,8 @@ metadata/_custom_type_script = "uid://iy0w45a50gju"
 position = Vector2(310, 247)
 script = ExtResource("3_eaos1")
 obstacle_polygon = PackedVector2Array(-12, -12, 55, -12, 37, 55, -12, 37)
+is_static = false
 metadata/_custom_type_script = "uid://dsw8ahtan3evv"
-
-[node name="AnimationPlayer" type="AnimationPlayer" parent="PathfinderObstacleD"]
-libraries = {
-&"": SubResource("AnimationLibrary_wlawv")
-}
 
 [node name="PathfinderObstacleS" type="Node2D" parent="."]
 position = Vector2(270, 293)

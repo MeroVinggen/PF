@@ -40,7 +40,7 @@ func _setup_demo_ui():
 	add_child(label)
 	label.name = "DebugLabel"
 
-func _process(delta):
+func _physics_process(_delta: float) -> void:
 	_update_debug_ui()
 
 # UPDATED: Simplified debug UI function
@@ -62,7 +62,6 @@ func _update_debug_ui():
 		info.append("Failures: " + str(pathfinder.consecutive_failed_recalcs))
 		info.append("Stuck: " + str(pathfinder.is_stuck()))
 	
-	info.append("\nLClick=Move, RClick=MoveObstacle, R=Update")
 	label.text = "\n".join(info)
 
 func _input(event):

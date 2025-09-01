@@ -29,8 +29,6 @@ var is_moving: bool = false
 # Stuck detection variables
 var last_positions: Array[Vector2] = []
 var stuck_timer: float = 0.0
-var unstuck_direction: Vector2 = Vector2.ZERO
-var is_unsticking: bool = false
 
 # Dynamic pathfinding variables
 var path_validation_timer: float = 0.0
@@ -173,23 +171,10 @@ func _update_stuck_detection(delta):
 			_handle_stuck()
 	else:
 		stuck_timer = 0.0
-		if is_unsticking:
-			is_unsticking = false
-			agent_unstuck.emit()
 
 func _handle_stuck():
 	agent_stuck.emit()
-	is_unsticking = true
-	
-	var directions = [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]
-	directions.shuffle()
-	
-	for direction in directions:
-		var test_pos = global_position + direction * (agent_radius * 2)
-		if not system._is_circle_position_unsafe(test_pos, agent_radius):
-			unstuck_direction = direction
-			return
-	
+	stuck_timer = 0.0
 	consecutive_failed_recalcs = 0
 	_recalculate_or_find_alternative()
 
@@ -210,7 +195,6 @@ func find_path_to(destination: Vector2) -> bool:
 	
 	# Reset state
 	stuck_timer = 0.0
-	is_unsticking = false
 	last_positions.clear()
 	path_validation_timer = 0.0
 	consecutive_failed_recalcs = 0
@@ -226,17 +210,11 @@ func stop_movement():
 	is_moving = false
 	current_path.clear()
 	path_index = 0
-	is_unsticking = false
 	stuck_timer = 0.0
 
 func _follow_path(delta):
 	if current_path.is_empty() or path_index >= current_path.size():
 		_on_destination_reached()
-		return
-	
-	# Handle unstuck movement
-	if is_unsticking and unstuck_direction.length() > 0.1:
-		_apply_unstuck_movement(delta)
 		return
 	
 	var current_target = current_path[path_index]
@@ -265,20 +243,11 @@ func _follow_path(delta):
 		var target_angle = direction.angle()
 		rotation = lerp_angle(rotation, target_angle, rotation_speed * delta)
 
-func _apply_unstuck_movement(delta):
-	var movement = unstuck_direction * unstuck_force * delta
-	var new_position = global_position + movement
-	
-	if not system._is_circle_position_unsafe(new_position, agent_radius):
-		global_position = new_position
-	else:
-		unstuck_direction = unstuck_direction.rotated(PI / 4)
 
 func _on_destination_reached():
 	is_moving = false
 	current_path.clear()
 	path_index = 0
-	is_unsticking = false
 	stuck_timer = 0.0
 	consecutive_failed_recalcs = 0
 	destination_reached.emit()
@@ -301,8 +270,6 @@ func _draw() -> void:
 	var color = agent_color
 	if consecutive_failed_recalcs > 0:
 		color = Color.PURPLE
-	elif is_unsticking:
-		color = Color.ORANGE
 	elif stuck_timer > stuck_time_threshold * 0.7:
 		color = Color.YELLOW
 	
@@ -326,11 +293,6 @@ func _draw() -> void:
 	# Draw target
 	if is_moving and target_position != Vector2.ZERO:
 		draw_circle(to_local(target_position), 8.0, Color.MAGENTA)
-	
-	# Draw unstuck direction
-	if is_unsticking and unstuck_direction.length() > 0.1:
-		var arrow_end = unstuck_direction * 20
-		draw_line(Vector2.ZERO, arrow_end, Color.RED, 3.0)
 
 func is_stuck() -> bool:
 	return stuck_timer >= stuck_time_threshold

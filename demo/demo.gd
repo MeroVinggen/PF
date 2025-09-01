@@ -161,18 +161,6 @@ func _draw():
 				var color = Color.GREEN if pathfinder_system.grid[pos] else Color.RED
 				draw_circle(pos, 2.0, color * 0.3)
 			i += 1
-	
-	# UPDATED: Simplified dynamic obstacle visualization
-	for obstacle in pathfinder_system.dynamic_obstacles:
-		if not is_instance_valid(obstacle):
-			continue
-		
-		var world_poly = obstacle.get_world_polygon()
-		if world_poly.size() >= 3:
-			# Draw simple influence circle instead of complex polygon expansion
-			var center = _get_polygon_center(world_poly)
-			var radius = _get_polygon_max_radius(world_poly, center)
-			draw_arc(center, radius + pathfinder_system.agent_buffer, 0, TAU, 32, Color.ORANGE * 0.5, 2.0)
 
 # UPDATED: Simplified helper functions
 func _get_polygon_center(polygon: PackedVector2Array) -> Vector2:

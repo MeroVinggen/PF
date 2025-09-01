@@ -498,20 +498,113 @@ func force_grid_update():
 # SIMPLIFIED: Single obstacle change handler
 func _on_obstacle_changed():
 	print("=== OBSTACLE CHANGED EVENT ===")
-	grid_dirty = true
 	
-	# Log which obstacles are dynamic and their positions
-	for i in range(obstacles.size()):
-		var obs = obstacles[i]
-		if is_instance_valid(obs) and not obs.is_static:
-			print("Dynamic obstacle ", i, " at position: ", obs.global_position)
+	# Find which obstacle actually changed by checking all dynamic obstacles
+	var changed_obstacle = null
+	for obstacle in dynamic_obstacles:
+		if is_instance_valid(obstacle) and obstacle._has_changed():
+			changed_obstacle = obstacle
+			break
 	
-	for pathfinder in pathfinders:
-		if is_instance_valid(pathfinder) and pathfinder.is_moving:
+	if not changed_obstacle:
+		print("No changed obstacle found - skipping update")
+		return
+	
+	print("Changed obstacle at: ", changed_obstacle.global_position)
+	
+	# Update grid only around the changed obstacle
+	_update_grid_around_obstacle(changed_obstacle)
+	
+	# Only invalidate paths that actually intersect with this obstacle
+	var affected_pathfinders = _get_pathfinders_affected_by_obstacle(changed_obstacle)
+	print("Affecting ", affected_pathfinders.size(), " pathfinders")
+	
+	for pathfinder in affected_pathfinders:
+		if pathfinder.is_moving:
 			print("Invalidating path for pathfinder at: ", pathfinder.global_position)
 			pathfinder.consecutive_failed_recalcs = 0
 			pathfinder.call_deferred("_recalculate_or_find_alternative")
+	
 	print("=== END OBSTACLE CHANGED ===")
+
+func _update_grid_around_obstacle(obstacle: PathfinderObstacle):
+	"""Update grid points around a specific obstacle only"""
+	var world_poly = obstacle.get_world_polygon()
+	var obstacle_bounds = _get_polygon_bounds(world_poly)
+	
+	# Expand bounds for agent clearance
+	obstacle_bounds = obstacle_bounds.grow(grid_size * 3)
+	
+	var updated_count = 0
+	for grid_pos in grid.keys():
+		if obstacle_bounds.has_point(grid_pos):
+			var old_value = grid[grid_pos]
+			var new_value = _is_grid_point_clear(grid_pos)
+			if old_value != new_value:
+				grid[grid_pos] = new_value
+				updated_count += 1
+	
+	print("Updated ", updated_count, " grid points around obstacle")
+
+# Add this new function to pathfinder_system.gd (after _update_grid_around_obstacle)
+func _get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array[Pathfinder]:
+	"""Get pathfinders whose paths might be affected by this obstacle"""
+	var affected: Array[Pathfinder] = []
+	var world_poly = obstacle.get_world_polygon()
+	var obstacle_bounds = _get_polygon_bounds(world_poly)
+	
+	# Expand bounds to account for agent sizes
+	obstacle_bounds = obstacle_bounds.grow(50.0)  # Conservative expansion
+	
+	for pathfinder in pathfinders:
+		if not is_instance_valid(pathfinder) or not pathfinder.is_moving:
+			continue
+		
+		# Check if pathfinder's current path intersects obstacle area
+		var path = pathfinder.get_current_path()
+		var path_intersects = false
+		
+		# Check if any remaining waypoints are in the obstacle area
+		for i in range(pathfinder.path_index, path.size()):
+			if obstacle_bounds.has_point(path[i]):
+				path_intersects = true
+				break
+		
+		# Check if any remaining path segments cross the obstacle area
+		if not path_intersects:
+			for i in range(pathfinder.path_index, path.size() - 1):
+				var segment_start = path[i]
+				var segment_end = path[i + 1]
+				
+				# Create bounding box for this segment
+				var segment_bounds = Rect2()
+				segment_bounds = segment_bounds.expand(segment_start)
+				segment_bounds = segment_bounds.expand(segment_end)
+				
+				if segment_bounds.intersects(obstacle_bounds):
+					path_intersects = true
+					break
+		
+		if path_intersects:
+			affected.append(pathfinder)
+	
+	return affected
+
+func _get_polygon_bounds(polygon: PackedVector2Array) -> Rect2:
+	"""Get bounding rectangle of a polygon"""
+	if polygon.is_empty():
+		return Rect2()
+	
+	var min_pos = polygon[0]
+	var max_pos = polygon[0]
+	
+	for point in polygon:
+		min_pos.x = min(min_pos.x, point.x)
+		min_pos.y = min(min_pos.y, point.y)
+		max_pos.x = max(max_pos.x, point.x)
+		max_pos.y = max(max_pos.y, point.y)
+	
+	return Rect2(min_pos, max_pos - min_pos)
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

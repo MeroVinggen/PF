@@ -3,6 +3,7 @@ extends Node2D
 class_name Pathfinder
 
 @export var agent_radius: float = 10.0
+@export var agent_buffer: float = 2.0
 @export var movement_speed: float = 200.0
 @export var rotation_speed: float = 5.0
 @export var auto_move: bool = true
@@ -90,7 +91,7 @@ func _recalculate_or_find_alternative():
 		for angle in angles:
 			var offset = Vector2(cos(angle), sin(angle)) * (agent_radius * 3)
 			var test_pos = target_position + offset
-			if _is_point_in_bounds(test_pos) and not system._is_circle_position_unsafe(test_pos, agent_radius):
+			if _is_point_in_bounds(test_pos) and not system._is_circle_position_unsafe(test_pos, agent_radius, agent_buffer):
 				path = system.find_path_for_circle(global_position, test_pos, agent_radius)
 				if not path.is_empty():
 					target_position = test_pos
@@ -111,14 +112,14 @@ func _is_current_path_safe() -> bool:
 		return false
 	
 	# Check current position and next waypoint
-	if system._is_circle_position_unsafe(global_position, agent_radius):
+	if system._is_circle_position_unsafe(global_position, agent_radius, agent_buffer):
 		return false
 	
 	if path_index < current_path.size():
 		var next_waypoint = current_path[path_index]
-		if system._is_circle_position_unsafe(next_waypoint, agent_radius):
+		if system._is_circle_position_unsafe(next_waypoint, agent_radius, agent_buffer):
 			return false
-		if not system._is_safe_circle_path(global_position, next_waypoint, agent_radius):
+		if not system._is_safe_circle_path(global_position, next_waypoint, agent_radius, agent_buffer):
 			return false
 	
 	return true
@@ -182,7 +183,7 @@ func find_path_to(destination: Vector2) -> bool:
 	if not system:
 		return false
 	
-	var path = system.find_path_for_circle(global_position, destination, agent_radius)
+	var path = system.find_path_for_circle(global_position, destination, agent_radius, agent_buffer)
 	
 	if path.is_empty():
 		path_blocked.emit()
@@ -296,3 +297,11 @@ func _draw() -> void:
 
 func is_stuck() -> bool:
 	return stuck_timer >= stuck_time_threshold
+
+func _get_configuration_warnings() -> PackedStringArray:
+	var warnings: PackedStringArray = []
+	
+	if agent_buffer < 0:
+		warnings.append("Agent buffer cannot be negative")
+	
+	return warnings

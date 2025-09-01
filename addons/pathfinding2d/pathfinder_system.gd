@@ -10,7 +10,6 @@ class_name PathfinderSystem
 ])
 
 @export var grid_size: float = 25.0
-@export var agent_buffer: float = 5.0
 @export var dynamic_update_rate: float = 0.1
 @export var auto_invalidate_paths: bool = true
 @export var pathfinders: Array[Pathfinder] = []
@@ -205,9 +204,9 @@ func unregister_pathfinder(pathfinder: Pathfinder):
 	pathfinders.erase(pathfinder)
 	pathfinder.system = null
 
-func find_path_for_circle(start: Vector2, end: Vector2, radius: float) -> PackedVector2Array:
+func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = 2.0) -> PackedVector2Array:
 	print("=== PATHFINDING REQUEST ===")
-	print("Start: ", start, " End: ", end, " Radius: ", radius)
+	print("Start: ", start, " End: ", end, " Radius: ", radius, " Buffer: ", buffer)
 	print("Grid dirty: ", grid_dirty)
 	print("Total obstacles: ", obstacles.size())
 	
@@ -225,12 +224,12 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float) -> Packed
 		grid_dirty = false
 		last_grid_update = 0.0
 	
-	if _is_safe_circle_path(start, end, radius):
+	if _is_safe_circle_path(start, end, radius, buffer):
 		print("Using direct path")
 		return PackedVector2Array([start, end])
 	
-	var start_grid = _find_safe_circle_position(start, radius)
-	var end_grid = _find_safe_circle_position(end, radius)
+	var start_grid = _find_safe_circle_position(start, radius, buffer)
+	var end_grid = _find_safe_circle_position(end, radius, buffer)
 	
 	print("Start grid pos: ", start_grid, " (safe: ", start_grid != Vector2.INF, ")")
 	print("End grid pos: ", end_grid, " (safe: ", end_grid != Vector2.INF, ")")
@@ -239,11 +238,11 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float) -> Packed
 		print("No safe grid positions found - PATH BLOCKED")
 		return PackedVector2Array()
 	
-	var path = _a_star_pathfind_circle(start_grid, end_grid, radius)
+	var path = _a_star_pathfind_circle(start_grid, end_grid, radius, buffer)
 	print("A* result: ", path.size(), " waypoints")
 	
 	if path.size() > 2:
-		path = _smooth_circle_path(path, radius)
+		path = _smooth_circle_path(path, radius, buffer)
 		print("Smoothed to: ", path.size(), " waypoints")
 	
 	print("=== END PATHFINDING REQUEST ===")
@@ -284,7 +283,7 @@ func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
 	
 	return inside
 
-func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float) -> bool:
+func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: float) -> bool:
 	var distance = start.distance_to(end)
 	var samples = max(int(distance / (grid_size * 0.5)), 8)
 	
@@ -292,13 +291,13 @@ func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float) -> bool:
 		var t = float(i) / float(samples)
 		var test_pos = start.lerp(end, t)
 		
-		if _is_circle_position_unsafe(test_pos, radius):
+		if _is_circle_position_unsafe(test_pos, radius, buffer):
 			return false
 	
 	return true
 
-func _is_circle_position_unsafe(pos: Vector2, radius: float) -> bool:
-	var total_radius = radius + agent_buffer
+func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> bool:
+	var total_radius = radius + buffer
 	
 	for obstacle in obstacles:
 		if not is_instance_valid(obstacle):
@@ -342,10 +341,10 @@ func _distance_point_to_line_segment(point: Vector2, line_start: Vector2, line_e
 	
 	return point.distance_to(projection)
 
-func _find_safe_circle_position(pos: Vector2, radius: float) -> Vector2:
+func _find_safe_circle_position(pos: Vector2, radius: float, buffer: float) -> Vector2:
 	var snapped = _snap_to_grid(pos)
 	
-	if grid.has(snapped) and not _is_circle_position_unsafe(snapped, radius):
+	if grid.has(snapped) and not _is_circle_position_unsafe(snapped, radius, buffer):
 		return snapped
 	
 	# Simplified search - just check nearby grid points
@@ -354,7 +353,7 @@ func _find_safe_circle_position(pos: Vector2, radius: float) -> Vector2:
 			if pos.distance_to(grid_pos) > search_radius:
 				continue
 			
-			if not _is_circle_position_unsafe(grid_pos, radius):
+			if not _is_circle_position_unsafe(grid_pos, radius, buffer):
 				return grid_pos
 	
 	return Vector2.INF
@@ -365,7 +364,7 @@ func _snap_to_grid(pos: Vector2) -> Vector2:
 		round(pos.y / grid_size) * grid_size
 	)
 
-func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float) -> PackedVector2Array:
+func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffer: float) -> PackedVector2Array:
 	open_set.clear()
 	closed_set.clear()
 	came_from.clear()
@@ -400,10 +399,10 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float) -> Pa
 			if grid.has(neighbor_pos) and not grid[neighbor_pos]:
 				continue
 			
-			if _is_circle_position_unsafe(neighbor_pos, radius):
+			if _is_circle_position_unsafe(neighbor_pos, radius, buffer):
 				continue
 			
-			if not _is_safe_circle_path(current.position, neighbor_pos, radius):
+			if not _is_safe_circle_path(current.position, neighbor_pos, radius, buffer):
 				continue
 			
 			var movement_cost = current.position.distance_to(neighbor_pos)
@@ -445,7 +444,7 @@ func _get_neighbors(pos: Vector2) -> Array[Vector2]:
 func _heuristic(pos: Vector2, goal: Vector2) -> float:
 	return pos.distance_to(goal)
 
-func _smooth_circle_path(path: PackedVector2Array, radius: float) -> PackedVector2Array:
+func _smooth_circle_path(path: PackedVector2Array, radius: float, buffer: float) -> PackedVector2Array:
 	if path.size() <= 2:
 		return path
 	
@@ -458,7 +457,7 @@ func _smooth_circle_path(path: PackedVector2Array, radius: float) -> PackedVecto
 		var farthest_safe = current_index + 1
 		
 		for i in range(current_index + 2, path.size()):
-			if _is_safe_circle_path(path[current_index], path[i], radius):
+			if _is_safe_circle_path(path[current_index], path[i], radius, buffer):
 				farthest_safe = i
 			else:
 				break
@@ -614,8 +613,5 @@ func _get_configuration_warnings() -> PackedStringArray:
 	
 	if grid_size <= 0:
 		warnings.append("Grid size must be greater than 0")
-	
-	if agent_buffer < 0:
-		warnings.append("Agent buffer cannot be negative")
 	
 	return warnings

@@ -11,10 +11,15 @@ script = ExtResource("1_uqdso")
 [node name="PathfinderSystem" type="Node2D" parent="." node_paths=PackedStringArray("pathfinders", "obstacles")]
 script = ExtResource("2_umghc")
 bounds_polygon = PackedVector2Array(0, 0, 700, 0, 700, 700, 0, 700)
-agent_buffer = 1.0
 pathfinders = [NodePath("../Pathfinder")]
 obstacles = [NodePath("../PathfinderObstacleD"), NodePath("../PathfinderObstacleS")]
 metadata/_custom_type_script = "uid://iy0w45a50gju"
+
+[node name="PathfinderObstacleS" type="Node2D" parent="."]
+position = Vector2(270, 293)
+script = ExtResource("3_eaos1")
+obstacle_polygon = PackedVector2Array(-25, -25, 25, -25, 25, 25, -25, 25)
+metadata/_custom_type_script = "uid://dsw8ahtan3evv"
 
 [node name="PathfinderObstacleD" type="Node2D" parent="."]
 position = Vector2(310, 247)
@@ -23,13 +28,8 @@ obstacle_polygon = PackedVector2Array(-12, -12, 55, -12, 37, 55, -12, 37)
 is_static = false
 metadata/_custom_type_script = "uid://dsw8ahtan3evv"
 
-[node name="PathfinderObstacleS" type="Node2D" parent="."]
-position = Vector2(270, 293)
-script = ExtResource("3_eaos1")
-obstacle_polygon = PackedVector2Array(-25, -25, 25, -25, 25, 25, -25, 25)
-metadata/_custom_type_script = "uid://dsw8ahtan3evv"
-
 [node name="Pathfinder" type="Node2D" parent="."]
 position = Vector2(129, 107)
 script = ExtResource("4_wlawv")
+agent_buffer = 0.0
 metadata/_custom_type_script = "uid://c0akywfx8v7xg"

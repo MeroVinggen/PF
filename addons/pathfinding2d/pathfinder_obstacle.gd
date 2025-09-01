@@ -2,6 +2,9 @@
 extends Node2D
 class_name PathfinderObstacle
 
+signal static_state_changed(is_now_static: bool)
+signal obstacle_changed()
+
 @export var obstacle_polygon: PackedVector2Array = PackedVector2Array([
 	Vector2(-25, -25),
 	Vector2(25, -25),
@@ -9,7 +12,7 @@ class_name PathfinderObstacle
 	Vector2(-25, 25)
 ])
 
-@export var is_static: bool = true
+@export var is_static: bool = true : set = _set_is_static
 @export var debug_draw: bool = true
 @export var obstacle_color: Color = Color.RED
 
@@ -18,7 +21,10 @@ var last_position: Vector2
 var last_polygon: PackedVector2Array
 var last_transform: Transform2D
 
-signal obstacle_changed()
+func _set_is_static(value: bool):
+	if is_static != value:
+		is_static = value
+		static_state_changed.emit(is_static)
 
 func _has_changed() -> bool:
 	var pos_changed = last_position.distance_to(global_position) > 0.5

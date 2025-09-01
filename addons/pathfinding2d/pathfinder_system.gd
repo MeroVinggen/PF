@@ -152,6 +152,24 @@ func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 	if not obstacle.is_static:
 		if not obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
 			obstacle.obstacle_changed.connect(_on_obstacle_changed)
+	if not obstacle.static_state_changed.is_connected(_on_obstacle_static_changed):
+		obstacle.static_state_changed.connect(_on_obstacle_static_changed.bind(obstacle))
+
+func _on_obstacle_static_changed(is_now_static: bool, obstacle: PathfinderObstacle):
+	if is_now_static:
+		# Became static - remove from dynamic list
+		dynamic_obstacles.erase(obstacle)
+		if obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
+			obstacle.obstacle_changed.disconnect(_on_obstacle_changed)
+	else:
+		# Became dynamic - add to dynamic list
+		if obstacle not in dynamic_obstacles:
+			dynamic_obstacles.append(obstacle)
+		if not obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
+			obstacle.obstacle_changed.connect(_on_obstacle_changed)
+	
+	# Trigger grid update since obstacle type changed
+	grid_dirty = true
 
 func unregister_obstacle(obstacle: PathfinderObstacle):
 	obstacles.erase(obstacle)

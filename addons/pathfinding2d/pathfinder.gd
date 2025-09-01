@@ -45,31 +45,15 @@ signal agent_unstuck()
 signal path_invalidated()
 signal path_recalculated()
 
-func _ready():
-	add_to_group("pathfinders")
-	if not Engine.is_editor_hint():
-		call_deferred("_find_system")
-
-func _find_system():
-	system = get_tree().get_first_node_in_group("pathfinder_systems") as PathfinderSystem
-	if system:
-		system.register_pathfinder(self)
-		print("Pathfinder connected to system")
-	else:
-		print("Warning: No PathfinderSystem found!")
-		await get_tree().create_timer(0.1).timeout
-		_find_system()
-
 func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)
 
 func _physics_process(delta: float) -> void:
-	queue_redraw()
-
-func _process(delta):
 	if Engine.is_editor_hint() or not auto_move:
 		return
+		
+	queue_redraw()
 	
 	_update_path_validation(delta)
 	

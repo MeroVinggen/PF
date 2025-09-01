@@ -20,12 +20,6 @@ var last_transform: Transform2D
 
 signal obstacle_changed()
 
-func _ready():
-	if not Engine.is_editor_hint():
-		add_to_group("pathfinder_obstacles")
-		_find_system()
-		_store_last_state()
-
 func _has_changed() -> bool:
 	var pos_changed = last_position.distance_to(global_position) > 0.5
 	var poly_changed = obstacle_polygon.size() != last_polygon.size()
@@ -50,17 +44,11 @@ func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
 			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and
 			(a.get_scale() - b.get_scale()).length() < 0.01)
 
-func _find_system():
-	system = get_tree().get_first_node_in_group("pathfinder_systems") as PathfinderSystem
-	if system:
-		system.register_obstacle(self)
-		obstacle_changed.connect(system._on_obstacle_changed)
-
 func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_obstacle(self)
 
-func _process(delta):
+func _physics_process(delta):
 	if Engine.is_editor_hint() or is_static:
 		return
 	

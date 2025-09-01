@@ -45,9 +45,11 @@ _data = {
 [node name="Demo" type="Node2D"]
 script = ExtResource("1_uqdso")
 
-[node name="PathfinderSystem" type="Node2D" parent="."]
+[node name="PathfinderSystem" type="Node2D" parent="." node_paths=PackedStringArray("pathfinders", "obstacles")]
 script = ExtResource("2_umghc")
 bounds_polygon = PackedVector2Array(0, 0, 700, 0, 700, 700, 0, 700)
+pathfinders = [NodePath("../Pathfinder")]
+obstacles = [NodePath("../PathfinderObstacleD"), NodePath("../PathfinderObstacleS")]
 metadata/_custom_type_script = "uid://iy0w45a50gju"
 
 [node name="PathfinderObstacleD" type="Node2D" parent="."]

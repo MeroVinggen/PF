@@ -13,10 +13,10 @@ class_name PathfinderSystem
 @export var agent_buffer: float = 5.0
 @export var dynamic_update_rate: float = 0.1
 @export var auto_invalidate_paths: bool = true
+@export var pathfinders: Array[Pathfinder] = []
+@export var obstacles: Array[PathfinderObstacle] = []
 
 var grid: Dictionary = {}
-var obstacles: Array[PathfinderObstacle] = []
-var pathfinders: Array[Pathfinder] = []
 var dynamic_obstacles: Array[PathfinderObstacle] = []
 
 var grid_dirty: bool = false
@@ -41,11 +41,10 @@ class PathNode:
 		f_score = g + h
 
 func _ready():
-	add_to_group("pathfinder_systems")
 	if not Engine.is_editor_hint():
 		_initialize_system()
 
-func _process(delta):
+func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 	_update_dynamic_system(delta)
@@ -70,8 +69,17 @@ func _update_dynamic_system(delta):
 
 
 func _initialize_system():
+	_register_initial_pathfinders()
+	_register_initial_obstacles()
 	_build_grid()
 
+func _register_initial_pathfinders() -> void:
+	for pathfinder in pathfinders:
+		_prepare_registered_pathfinder(pathfinder)
+
+func _register_initial_obstacles() -> void:
+	for obstacle in obstacles:
+		_prepare_registered_obstacle(obstacle)
 
 func _build_grid():
 	grid.clear()
@@ -137,19 +145,30 @@ func register_obstacle(obstacle: PathfinderObstacle):
 	
 	obstacles.append(obstacle)
 	
+	_prepare_registered_obstacle(obstacle)
+
+func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
+	obstacle.system = self
 	if not obstacle.is_static:
-		if obstacle.has_signal("obstacle_changed") and not obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
+		if not obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
 			obstacle.obstacle_changed.connect(_on_obstacle_changed)
 
 func unregister_obstacle(obstacle: PathfinderObstacle):
 	obstacles.erase(obstacle)
+	obstacle.system = null
 
 func register_pathfinder(pathfinder: Pathfinder):
 	if pathfinder not in pathfinders:
 		pathfinders.append(pathfinder)
+	
+	_prepare_registered_pathfinder(pathfinder)
+
+func _prepare_registered_pathfinder(pathfinder: Pathfinder):
+	pathfinder.system = self
 
 func unregister_pathfinder(pathfinder: Pathfinder):
 	pathfinders.erase(pathfinder)
+	pathfinder.system = null
 
 func find_path_for_circle(start: Vector2, end: Vector2, radius: float) -> PackedVector2Array:
 	if grid_dirty:

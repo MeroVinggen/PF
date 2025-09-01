@@ -98,16 +98,33 @@ func _build_grid():
 				grid[pos] = _is_grid_point_clear(pos)
 
 func _update_grid_for_dynamic_obstacles():
-	if dynamic_obstacles.is_empty():
+	print("=== UPDATING GRID FOR DYNAMIC OBSTACLES ===")
+	
+	var dynamic_obs = obstacles.filter(func(o): return is_instance_valid(o) and not o.is_static)
+	print("Found ", dynamic_obs.size(), " dynamic obstacles")
+	
+	if dynamic_obs.is_empty():
+		print("No dynamic obstacles - skipping grid update")
 		return
 	
 	var affected_bounds = _get_dynamic_obstacles_bounds()
+	print("Affected bounds: ", affected_bounds)
+	
 	if affected_bounds.size.x <= 0 or affected_bounds.size.y <= 0:
+		print("Invalid bounds - skipping grid update")
 		return
 	
+	var updated_count = 0
 	for grid_pos in grid.keys():
 		if affected_bounds.has_point(grid_pos):
-			grid[grid_pos] = _is_grid_point_clear(grid_pos)
+			var old_state = grid[grid_pos]
+			var new_state = _is_grid_point_clear(grid_pos)
+			if old_state != new_state:
+				updated_count += 1
+			grid[grid_pos] = new_state
+	
+	print("Updated ", updated_count, " grid points")
+	print("=== END GRID UPDATE ===")
 
 # SIMPLIFIED: Get bounds of dynamic obstacles
 func _get_dynamic_obstacles_bounds() -> Rect2:
@@ -195,26 +212,50 @@ func unregister_pathfinder(pathfinder: Pathfinder):
 	pathfinder.system = null
 
 func find_path_for_circle(start: Vector2, end: Vector2, radius: float) -> PackedVector2Array:
+	print("=== PATHFINDING REQUEST ===")
+	print("Start: ", start, " End: ", end, " Radius: ", radius)
+	print("Grid dirty: ", grid_dirty)
+	print("Total obstacles: ", obstacles.size())
+	
+	# Log all obstacle positions and states
+	for i in range(obstacles.size()):
+		var obs = obstacles[i]
+		if is_instance_valid(obs):
+			print("Obstacle ", i, ": pos=", obs.global_position, " static=", obs.is_static, " poly=", obs.get_world_polygon())
+		else:
+			print("Obstacle ", i, ": INVALID")
+	
 	if grid_dirty:
+		print("Updating grid for dynamic obstacles...")
 		_update_grid_for_dynamic_obstacles()
 		grid_dirty = false
 		last_grid_update = 0.0
 	
 	# Try direct path first
-	if _is_safe_circle_path(start, end, radius):
+	var direct_safe = _is_safe_circle_path(start, end, radius)
+	print("Direct path safe: ", direct_safe)
+	if direct_safe:
+		print("Using direct path")
 		return PackedVector2Array([start, end])
 	
 	var start_grid = _find_safe_circle_position(start, radius)
 	var end_grid = _find_safe_circle_position(end, radius)
 	
+	print("Start grid pos: ", start_grid, " (safe: ", start_grid != Vector2.INF, ")")
+	print("End grid pos: ", end_grid, " (safe: ", end_grid != Vector2.INF, ")")
+	
 	if start_grid == Vector2.INF or end_grid == Vector2.INF:
+		print("No safe grid positions found - PATH BLOCKED")
 		return PackedVector2Array()
 	
 	var path = _a_star_pathfind_circle(start_grid, end_grid, radius)
+	print("A* result: ", path.size(), " waypoints")
 	
 	if path.size() > 2:
 		path = _smooth_circle_path(path, radius)
+		print("Smoothed to: ", path.size(), " waypoints")
 	
+	print("=== END PATHFINDING REQUEST ===")
 	return path
 
 func _get_bounds_rect() -> Rect2:
@@ -268,7 +309,8 @@ func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float) -> bool:
 func _is_circle_position_unsafe(pos: Vector2, radius: float) -> bool:
 	var total_radius = radius + agent_buffer
 	
-	for obstacle in obstacles:
+	for i in range(obstacles.size()):
+		var obstacle = obstacles[i]
 		if not is_instance_valid(obstacle):
 			continue
 		
@@ -276,6 +318,7 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float) -> bool:
 		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
 		
 		if distance_to_obstacle < total_radius:
+			print("Position ", pos, " unsafe due to obstacle ", i, " at ", obstacle.global_position, " (distance: ", distance_to_obstacle, " < ", total_radius, ")")
 			return true
 	
 	return false
@@ -465,11 +508,21 @@ func force_grid_update():
 
 # SIMPLIFIED: Single obstacle change handler
 func _on_obstacle_changed():
+	print("=== OBSTACLE CHANGED EVENT ===")
 	grid_dirty = true
+	
+	# Log which obstacles are dynamic and their positions
+	for i in range(obstacles.size()):
+		var obs = obstacles[i]
+		if is_instance_valid(obs) and not obs.is_static:
+			print("Dynamic obstacle ", i, " at position: ", obs.global_position)
+	
 	for pathfinder in pathfinders:
 		if is_instance_valid(pathfinder) and pathfinder.is_moving:
+			print("Invalidating path for pathfinder at: ", pathfinder.global_position)
 			pathfinder.consecutive_failed_recalcs = 0
 			pathfinder.call_deferred("_recalculate_or_find_alternative")
+	print("=== END OBSTACLE CHANGED ===")
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

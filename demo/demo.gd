@@ -87,18 +87,27 @@ func _test_pathfinding_to(target: Vector2):
 		print("ERROR: No pathfinder available")
 
 func _move_dynamic_obstacle_to(target: Vector2):
-	print("Moving dynamic obstacle to: ", target)
+	print("=== MOVING DYNAMIC OBSTACLE ===")
+	print("From: ", dynamic_obstacle.global_position, " To: ", target)
 	
 	if dynamic_obstacle:
 		# Create a smooth movement tween
 		var tween = create_tween()
 		tween.tween_property(dynamic_obstacle, "global_position", target, 1.0)
-		tween.tween_callback(_on_obstacle_movement_complete)
+		tween.tween_callback(_on_obstacle_movement_complete.bind(target))
 	else:
 		print("ERROR: No dynamic obstacle available")
 
-func _on_obstacle_movement_complete():
-	print("Dynamic obstacle movement completed")
+func _on_obstacle_movement_complete(target_pos: Vector2):
+	print("=== OBSTACLE MOVEMENT COMPLETE ===")
+	print("Dynamic obstacle now at: ", dynamic_obstacle.global_position)
+	print("Target was: ", target_pos)
+	print("Distance from target: ", dynamic_obstacle.global_position.distance_to(target_pos))
+	
+	# Force a grid update after movement
+	if pathfinder_system:
+		print("Forcing grid update after obstacle movement")
+		pathfinder_system.force_grid_update()
 
 func _force_grid_update():
 	if pathfinder_system:

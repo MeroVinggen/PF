@@ -63,10 +63,14 @@ func _physics_process(delta):
 
 func _check_for_changes():
 	if _has_changed():
+		print("=== OBSTACLE CHANGE DETECTED ===")
+		print("Obstacle at: ", global_position, " (was: ", last_position, ")")
+		print("Transform changed: ", not _transforms_roughly_equal(last_transform, global_transform))
 		_store_last_state()
 		obstacle_changed.emit()
 		if system:
 			system._on_obstacle_changed()
+		print("=== END OBSTACLE CHANGE ===")
 
 func _store_last_state():
 	"""Store current state for change detection"""

@@ -35,6 +35,15 @@ signal agent_unstuck()
 signal path_invalidated()
 signal path_recalculated()
 
+func _physics_process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
+	
+	_update_path_validation(delta)
+	
+	if debug_draw:
+		queue_redraw()
+
 func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)

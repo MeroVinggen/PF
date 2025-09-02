@@ -5,7 +5,6 @@ extends Node2D
 @onready var pathfinder_system = $PathfinderSystem
 @onready var pathfinder = $Pathfinder
 @onready var dynamic_obstacle = $PathfinderObstacleD
-@onready var static_obstacle = $PathfinderObstacleS
 
 func _ready():
 	print("=== Enhanced Pathfinding Demo Starting ===")
@@ -149,26 +148,3 @@ func _on_path_invalidated():
 
 func _on_path_recalculated():
 	print("✓ Path successfully recalculated")
-
-
-# UPDATED: Simplified helper functions
-func _get_polygon_center(polygon: PackedVector2Array) -> Vector2:
-	"""Calculate the center point of a polygon"""
-	if polygon.is_empty():
-		return Vector2.ZERO
-	
-	var sum = Vector2.ZERO
-	for point in polygon:
-		sum += point
-	
-	return sum / polygon.size()
-
-func _get_polygon_max_radius(polygon: PackedVector2Array, center: Vector2) -> float:
-	"""Get maximum distance from center to any polygon vertex"""
-	var max_radius = 0.0
-	
-	for point in polygon:
-		var distance = center.distance_to(point)
-		max_radius = max(max_radius, distance)
-	
-	return max_radius

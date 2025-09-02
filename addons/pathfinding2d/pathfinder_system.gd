@@ -457,21 +457,6 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	
 	return PackedVector2Array()
 
-func _get_neighbors(pos: Vector2) -> Array[Vector2]:
-	var neighbors: Array[Vector2] = []
-	var directions = [
-		Vector2(grid_size, 0), Vector2(-grid_size, 0),
-		Vector2(0, grid_size), Vector2(0, -grid_size),
-		Vector2(grid_size, grid_size), Vector2(-grid_size, -grid_size),
-		Vector2(grid_size, -grid_size), Vector2(-grid_size, grid_size)
-	]
-	
-	for direction in directions:
-		var neighbor = pos + direction
-		if grid.has(neighbor):
-			neighbors.append(neighbor)
-	
-	return neighbors
 
 func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Array[Vector2]:
 	var neighbors: Array[Vector2] = []

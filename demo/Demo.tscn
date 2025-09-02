@@ -41,5 +41,4 @@ systems_to_debug = [NodePath("../PathfinderSystem")]
 obstacles_to_debug = [NodePath("../PathfinderObstacleS"), NodePath("../PathfinderObstacleD")]
 pathfinders_to_debug = [NodePath("../Pathfinder")]
 draw_grid = true
-draw_fps = 10.0
 metadata/_custom_type_script = "uid://dq8my7tks08qu"

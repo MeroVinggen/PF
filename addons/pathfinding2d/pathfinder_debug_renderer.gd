@@ -12,7 +12,10 @@ class_name PathfindingDebugRenderer
 @export var draw_pathfinders: bool = true
 @export var draw_grid: bool = false
 @export var grid_sample_rate: int = 10
-@export var draw_fps: float = 60.0
+@export var draw_fps: float = 30.0 :
+	set(value):
+		draw_fps = value
+		draw_timer_cap = 1.0 / draw_fps
 
 @export_group("Colors")
 @export var system_bounds_color: Color = Color.BLUE
@@ -25,10 +28,11 @@ class_name PathfindingDebugRenderer
 @export var grid_blocked_color: Color = Color.RED
 
 var draw_timer: float = 0.0
+var draw_timer_cap: float = 0.032
 
 func _process(delta: float) -> void:
 	draw_timer += delta
-	if draw_timer >= 1.0 / draw_fps:
+	if draw_timer >= draw_timer_cap:
 		draw_timer = 0.0
 		queue_redraw()
 

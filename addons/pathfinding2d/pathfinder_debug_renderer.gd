@@ -18,13 +18,13 @@ class_name PathfindingDebugRenderer
 		draw_timer_cap = 1.0 / draw_fps
 
 @export_group("Colors")
-@export var system_bounds_color: Color = Color.BLUE
+@export var system_bounds_color: Color = Color.DARK_CYAN
 @export var obstacle_color: Color = Color.RED
 @export var dynamic_obstacle_color: Color = Color.ORANGE
 @export var pathfinder_color: Color = Color.GREEN
 @export var pathfinder_buffer_color: Color = Color.CYAN
 @export var path_color: Color = Color.YELLOW
-@export var grid_clear_color: Color = Color.GREEN
+@export var grid_clear_color: Color = Color.CORNFLOWER_BLUE
 @export var grid_blocked_color: Color = Color.RED
 
 var draw_timer: float = 0.0
@@ -65,7 +65,7 @@ func _draw_systems():
 			for pos in system.grid.keys():
 				if i % grid_sample_rate == 0:
 					var color = grid_clear_color if system.grid[pos] else grid_blocked_color
-					draw_circle(pos, 2.0, color * 0.3)
+					draw_circle(pos, 2.0, color)
 				i += 1
 
 func _draw_obstacles():

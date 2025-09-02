@@ -27,10 +27,15 @@ func _set_is_static(value: bool):
 		static_state_changed.emit(is_static)
 
 func _has_changed() -> bool:
-	var pos_changed = last_position.distance_to(global_position) > 0.5
+	# More sensitive change detection for better responsiveness
+	var pos_threshold = 0.3 if not is_static else 0.8  # Tighter for dynamic
+	var rot_threshold = 0.003 if not is_static else 0.008
+	
+	var pos_changed = last_position.distance_to(global_position) > pos_threshold
 	var poly_changed = obstacle_polygon.size() != last_polygon.size()
+	
 	if not poly_changed:
-		var threshold = 0.1
+		var threshold = 0.05  # More sensitive polygon change detection
 		for i in obstacle_polygon.size():
 			if obstacle_polygon[i].distance_to(last_polygon[i]) > threshold:
 				poly_changed = true
@@ -43,8 +48,8 @@ func _has_changed() -> bool:
 	return pos_changed or poly_changed or transform_changed
 
 func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
-	var pos_threshold = 0.5 if not is_static else 1.0
-	var rot_threshold = 0.005 if not is_static else 0.01
+	var pos_threshold = 0.3 if not is_static else 0.8  # Tighter for dynamic
+	var rot_threshold = 0.003 if not is_static else 0.008
 	
 	return (a.origin.distance_to(b.origin) < pos_threshold and 
 			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and

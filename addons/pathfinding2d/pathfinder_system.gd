@@ -299,14 +299,24 @@ func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: f
 func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> bool:
 	var total_radius = radius + buffer
 	
+	# Must be within bounds
+	if not _is_point_in_polygon(pos, bounds_polygon):
+		return true
+	
+	# Check distance to all obstacles
 	for obstacle in obstacles:
 		if not is_instance_valid(obstacle):
 			continue
 		
 		var world_poly = obstacle.get_world_polygon()
+		if world_poly.is_empty():
+			continue
+			
 		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
 		
-		if distance_to_obstacle < total_radius:
+		# Add small tolerance to prevent edge cases
+		var safety_margin = 0.5
+		if distance_to_obstacle < (total_radius - safety_margin):
 			return true
 	
 	return false
@@ -342,17 +352,35 @@ func _distance_point_to_line_segment(point: Vector2, line_start: Vector2, line_e
 	return point.distance_to(projection)
 
 func _find_safe_circle_position(pos: Vector2, radius: float, buffer: float) -> Vector2:
-	var snapped = _snap_to_grid(pos)
+	# First try the exact position
+	if not _is_circle_position_unsafe(pos, radius, buffer):
+		return pos
 	
-	if grid.has(snapped) and not _is_circle_position_unsafe(snapped, radius, buffer):
+	# Try snapped grid position
+	var snapped = _snap_to_grid(pos)
+	if not _is_circle_position_unsafe(snapped, radius, buffer):
 		return snapped
 	
-	# Simplified search - just check nearby grid points
-	for search_radius in [grid_size * 2, grid_size * 4, grid_size * 8]:
-		for grid_pos in grid.keys():
-			if pos.distance_to(grid_pos) > search_radius:
-				continue
+	# For larger agents or fine grids, search in expanding circles
+	var search_step = min(grid_size * 0.5, radius * 0.5)  # Smaller steps for precision
+	var max_search_radius = max(grid_size * 12, radius * 6)  # Scale with agent size
+	
+	# Try positions in expanding circles around target
+	for search_radius in range(int(search_step), int(max_search_radius), int(search_step)):
+		var angle_step = PI / 8  # 8 directions per circle
+		
+		for angle in range(0, int(TAU / angle_step)):
+			var test_angle = angle * angle_step
+			var offset = Vector2(cos(test_angle), sin(test_angle)) * search_radius
+			var test_pos = pos + offset
 			
+			# Must be within bounds and not unsafe
+			if _is_point_in_polygon(test_pos, bounds_polygon) and not _is_circle_position_unsafe(test_pos, radius, buffer):
+				return test_pos
+	
+	# Final fallback: try grid points in expanded area
+	for grid_pos in grid.keys():
+		if pos.distance_to(grid_pos) <= max_search_radius:
 			if not _is_circle_position_unsafe(grid_pos, radius, buffer):
 				return grid_pos
 	
@@ -373,7 +401,10 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	open_set.append(start_node)
 	
 	var iterations = 0
-	var max_iterations = 2000
+	var max_iterations = 3000  # Increased for better pathfinding
+	
+	# Dynamic goal tolerance based on agent size
+	var goal_tolerance = max(grid_size * 0.7, radius * 0.5)
 	
 	while not open_set.is_empty() and iterations < max_iterations:
 		iterations += 1
@@ -387,16 +418,17 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 		var current = open_set[current_idx]
 		open_set.remove_at(current_idx)
 		
-		if current.position.distance_to(goal) < grid_size * 0.5:
+		# Check if we reached the goal (with tolerance)
+		if current.position.distance_to(goal) < goal_tolerance:
 			return _reconstruct_path(came_from, current.position, start)
 		
 		closed_set[current.position] = true
 		
-		for neighbor_pos in _get_neighbors(current.position):
+		# Get neighbors with dynamic step size
+		var neighbors = _get_adaptive_neighbors(current.position, radius, buffer)
+		
+		for neighbor_pos in neighbors:
 			if closed_set.has(neighbor_pos):
-				continue
-			
-			if grid.has(neighbor_pos) and not grid[neighbor_pos]:
 				continue
 			
 			if _is_circle_position_unsafe(neighbor_pos, radius, buffer):
@@ -410,7 +442,7 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 			
 			var existing_node = null
 			for node in open_set:
-				if node.position == neighbor_pos:
+				if node.position.distance_to(neighbor_pos) < grid_size * 0.3:  # Close enough
 					existing_node = node
 					break
 			
@@ -437,6 +469,39 @@ func _get_neighbors(pos: Vector2) -> Array[Vector2]:
 	for direction in directions:
 		var neighbor = pos + direction
 		if grid.has(neighbor):
+			neighbors.append(neighbor)
+	
+	return neighbors
+
+func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Array[Vector2]:
+	var neighbors: Array[Vector2] = []
+	
+	# Use smaller steps for larger agents to find more precise paths
+	var step_size = grid_size
+	if radius > grid_size * 0.7:
+		step_size = max(grid_size * 0.5, radius * 0.8)  # Adaptive step size
+	
+	# Standard 8-direction movement
+	var directions = [
+		Vector2(step_size, 0), Vector2(-step_size, 0),
+		Vector2(0, step_size), Vector2(0, -step_size),
+		Vector2(step_size, step_size), Vector2(-step_size, -step_size),
+		Vector2(step_size, -step_size), Vector2(-step_size, step_size)
+	]
+	
+	# For larger agents, also try half-steps to find tighter passages
+	if radius > grid_size * 0.5:
+		var half_step = step_size * 0.5
+		directions.append_array([
+			Vector2(half_step, 0), Vector2(-half_step, 0),
+			Vector2(0, half_step), Vector2(0, -half_step)
+		])
+	
+	for direction in directions:
+		var neighbor = pos + direction
+		
+		# Check if within bounds
+		if _is_point_in_polygon(neighbor, bounds_polygon):
 			neighbors.append(neighbor)
 	
 	return neighbors

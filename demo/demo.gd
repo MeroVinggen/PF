@@ -1,6 +1,7 @@
 # Enhanced demo script showcasing dynamic pathfinding features
 extends Node2D
 
+@onready var movement_controller = MovementController.new()
 @onready var pathfinder_system = $PathfinderSystem
 @onready var pathfinder = $Pathfinder
 @onready var dynamic_obstacle = $PathfinderObstacleD
@@ -15,11 +16,21 @@ func _ready():
 	_setup_pathfinder_signals()
 	_setup_demo_ui()
 	
+	add_child(movement_controller)
+	movement_controller.setup(pathfinder, pathfinder)
+	movement_controller.waypoint_reached.connect(_on_waypoint_reached)
+	movement_controller.destination_reached.connect(_on_destination_reached)
+	movement_controller.agent_stuck.connect(_on_agent_stuck)
+	movement_controller.agent_unstuck.connect(_on_agent_unstuck)
+	
 	print("=== Demo Ready ===")
 	print("Controls:")
 	print("  Left Click - Move to position")
 	print("  Right Click - Move dynamic obstacle")
 	print("  R - Force grid update")
+
+func _on_waypoint_reached():
+	print("→ Waypoint reached")
 
 func _setup_pathfinder_signals():
 	if pathfinder:
@@ -60,7 +71,7 @@ func _update_debug_ui():
 		info.append("Moving: " + str(pathfinder.is_moving))
 		info.append("Valid: " + str(pathfinder.is_path_valid()))
 		info.append("Failures: " + str(pathfinder.consecutive_failed_recalcs))
-		info.append("Stuck: " + str(pathfinder.is_stuck()))
+		info.append("Stuck: " + str(movement_controller.is_stuck()))
 	
 	label.text = "\n".join(info)
 

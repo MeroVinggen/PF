@@ -4,18 +4,12 @@ class_name Pathfinder
 
 @export var agent_radius: float = 10.0
 @export var agent_buffer: float = 2.0
-@export var movement_speed: float = 200.0
-@export var rotation_speed: float = 5.0
+
 @export var auto_move: bool = true
 @export var debug_draw: bool = true
 @export var agent_color: Color = Color.GREEN
 @export var path_color: Color = Color.YELLOW
 @export var arrival_distance: float = 8.0
-
-# Stuck prevention settings
-@export var stuck_threshold: float = 2.0
-@export var stuck_time_threshold: float = 2.0
-@export var unstuck_force: float = 50.0
 
 # Dynamic pathfinding settings
 @export var path_validation_rate: float = 0.2
@@ -27,9 +21,6 @@ var target_position: Vector2
 var path_index: int = 0
 var is_moving: bool = false
 
-# Stuck detection variables
-var last_positions: Array[Vector2] = []
-var stuck_timer: float = 0.0
 
 # Dynamic pathfinding variables
 var path_validation_timer: float = 0.0
@@ -48,17 +39,6 @@ func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)
 
-func _physics_process(delta: float) -> void:
-	if Engine.is_editor_hint() or not auto_move:
-		return
-		
-	queue_redraw()
-	
-	_update_path_validation(delta)
-	
-	if is_moving:
-		_update_stuck_detection(delta)
-		_follow_path(delta)
 
 # SIMPLIFIED: Combined dynamic pathfinding logic
 func _update_path_validation(delta):
@@ -156,29 +136,6 @@ func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
 
 	return inside
 
-# SIMPLIFIED: Basic stuck detection
-func _update_stuck_detection(delta):
-	last_positions.append(global_position)
-	if last_positions.size() > 6:
-		last_positions.pop_front()
-	
-	if last_positions.size() < 3:
-		return
-	
-	var movement = last_positions[-1].distance_to(last_positions[0])
-	if movement < stuck_threshold:
-		stuck_timer += delta
-		if stuck_timer >= stuck_time_threshold:
-			_handle_stuck()
-	else:
-		stuck_timer = 0.0
-
-func _handle_stuck():
-	agent_stuck.emit()
-	stuck_timer = 0.0
-	consecutive_failed_recalcs = 0
-	_recalculate_or_find_alternative()
-
 func find_path_to(destination: Vector2) -> bool:
 	if not system:
 		return false
@@ -208,61 +165,41 @@ func find_path_to(destination: Vector2) -> bool:
 	is_moving = true
 	
 	# Reset state
-	stuck_timer = 0.0
-	last_positions.clear()
 	path_validation_timer = 0.0
 	consecutive_failed_recalcs = 0
 	
 	path_found.emit(current_path)
 	return true
 
-func move_to(destination: Vector2):
-	if find_path_to(destination):
-		is_moving = true
+func move_to(destination: Vector2) -> bool:
+	return find_path_to(destination)
 
-func stop_movement():
-	is_moving = false
-	current_path.clear()
-	path_index = 0
-	stuck_timer = 0.0
-
-func _follow_path(delta):
+func get_next_waypoint() -> Vector2:
 	if current_path.is_empty() or path_index >= current_path.size():
+		return Vector2.INF
+	return current_path[path_index]
+
+func advance_to_next_waypoint() -> bool:
+	path_index += 1
+	if path_index >= current_path.size():
 		_on_destination_reached()
-		return
+		return false
+	return true
+
+func get_remaining_distance() -> float:
+	if current_path.is_empty() or path_index >= current_path.size():
+		return 0.0
 	
-	var current_target = current_path[path_index]
-	var distance_to_target = global_position.distance_to(current_target)
-	
-	# Check if reached waypoint
-	if distance_to_target < arrival_distance:
-		path_index += 1
-		if path_index >= current_path.size():
-			_on_destination_reached()
-			return
-		current_target = current_path[path_index]
-		distance_to_target = global_position.distance_to(current_target)
-	
-	# Move towards target
-	var direction = (current_target - global_position).normalized()
-	var movement = direction * movement_speed * delta
-	
-	if movement.length() > distance_to_target:
-		movement = direction * distance_to_target
-	
-	global_position += movement
-	
-	# Rotate towards movement direction
-	if direction.length() > 0.1:
-		var target_angle = direction.angle()
-		rotation = lerp_angle(rotation, target_angle, rotation_speed * delta)
+	var total = 0.0
+	for i in range(path_index, current_path.size() - 1):
+		total += current_path[i].distance_to(current_path[i + 1])
+	return total
 
 
 func _on_destination_reached():
 	is_moving = false
 	current_path.clear()
 	path_index = 0
-	stuck_timer = 0.0
 	consecutive_failed_recalcs = 0
 	destination_reached.emit()
 
@@ -284,8 +221,8 @@ func _draw() -> void:
 	var color = agent_color
 	if consecutive_failed_recalcs > 0:
 		color = Color.PURPLE
-	elif stuck_timer > stuck_time_threshold * 0.7:
-		color = Color.YELLOW
+	#elif stuck_timer > stuck_time_threshold * 0.7:
+		#color = Color.YELLOW
 	
 	draw_circle(Vector2.ZERO, agent_radius, color * 0.7)
 	draw_arc(Vector2.ZERO, agent_radius, 0, TAU, 32, color, 2.0)
@@ -307,9 +244,6 @@ func _draw() -> void:
 	# Draw target
 	if is_moving and target_position != Vector2.ZERO:
 		draw_circle(to_local(target_position), 8.0, Color.MAGENTA)
-
-func is_stuck() -> bool:
-	return stuck_timer >= stuck_time_threshold
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

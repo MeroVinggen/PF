@@ -183,14 +183,27 @@ func find_path_to(destination: Vector2) -> bool:
 	if not system:
 		return false
 	
-	var path = system.find_path_for_circle(global_position, destination, agent_radius, agent_buffer)
+	# If destination is unsafe, find closest safe point
+	var safe_destination = destination
+	if system._is_circle_position_unsafe(destination, agent_radius, agent_buffer):
+		print("Destination is inside obstacle, finding closest safe point...")
+		safe_destination = system._find_closest_safe_point(destination, agent_radius, agent_buffer)
+		
+		if safe_destination == Vector2.INF:
+			print("Could not find any safe point near destination")
+			path_blocked.emit()
+			return false
+		
+		print("Redirected to safe point: ", safe_destination, " (distance: ", destination.distance_to(safe_destination), ")")
+	
+	var path = system.find_path_for_circle(global_position, safe_destination, agent_radius, agent_buffer)
 	
 	if path.is_empty():
 		path_blocked.emit()
 		return false
 	
 	current_path = path
-	target_position = destination
+	target_position = safe_destination  # Use the safe destination
 	path_index = 0
 	is_moving = true
 	

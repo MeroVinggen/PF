@@ -610,6 +610,196 @@ func _update_grid_around_obstacle(obstacle: PathfinderObstacle):
 	
 	print("Updated ", updated_count, " grid points around obstacle")
 
+func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float) -> Vector2:
+	"""Find the closest safe point outside all obstacles for a given unsafe position"""
+	
+	# First, find which obstacle(s) contain this point
+	var containing_obstacles: Array[PathfinderObstacle] = []
+	for obstacle in obstacles:
+		if is_instance_valid(obstacle) and obstacle.is_point_inside(unsafe_pos):
+			containing_obstacles.append(obstacle)
+	
+	if containing_obstacles.is_empty():
+		# Point is not actually inside an obstacle, check if it's just too close
+		print("Point not inside obstacle, finding safe position nearby...")
+		return _find_safe_circle_position(unsafe_pos, radius, buffer)
+	
+	print("Point is inside ", containing_obstacles.size(), " obstacle(s)")
+	
+	# For each containing obstacle, find multiple candidate points
+	var candidates: Array[Vector2] = []
+	
+	for obstacle in containing_obstacles:
+		var safe_pos = _find_closest_point_outside_obstacle(unsafe_pos, obstacle, radius, buffer)
+		if safe_pos != Vector2.INF:
+			candidates.append(safe_pos)
+		
+		# Also try finding safe points in cardinal directions from obstacle edges
+		var world_poly = obstacle.get_world_polygon()
+		var poly_center = _get_polygon_center(world_poly)
+		var directions = [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]
+		
+		for direction in directions:
+			var test_distance = (radius + buffer + 25.0)  # Generous distance
+			var candidate = unsafe_pos + direction * test_distance
+			
+			if _is_point_in_polygon(candidate, bounds_polygon) and \
+			   not _is_circle_position_unsafe(candidate, radius, buffer):
+				candidates.append(candidate)
+	
+	# Choose the closest valid candidate
+	if not candidates.is_empty():
+		var best_candidate = candidates[0]
+		var best_distance = unsafe_pos.distance_to(best_candidate)
+		
+		for candidate in candidates:
+			var distance = unsafe_pos.distance_to(candidate)
+			if distance < best_distance:
+				best_distance = distance
+				best_candidate = candidate
+		
+		print("Selected best candidate at distance: ", best_distance)
+		return best_candidate
+	
+	# Fallback: search in expanding circles with larger steps
+	print("Using enhanced fallback search method...")
+	var search_step = max(grid_size, radius + buffer + 10.0)  # Larger search steps
+	var max_search_radius = max(grid_size * 15, radius * 10)  # Expanded search area
+	
+	# Try positions in expanding circles around target
+	for search_radius in range(int(search_step), int(max_search_radius), int(search_step)):
+		var angle_step = PI / 6  # 12 directions per circle (more directions)
+		
+		for angle in range(0, int(TAU / angle_step)):
+			var test_angle = angle * angle_step
+			var offset = Vector2(cos(test_angle), sin(test_angle)) * search_radius
+			var test_pos = unsafe_pos + offset
+			
+			# Must be within bounds and not unsafe
+			if _is_point_in_polygon(test_pos, bounds_polygon) and \
+			   not _is_circle_position_unsafe(test_pos, radius, buffer):
+				print("Fallback found safe point at: ", test_pos)
+				return test_pos
+	
+	print("Could not find any safe point!")
+	return Vector2.INF
+
+func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderObstacle, radius: float, buffer: float) -> Vector2:
+	"""Find closest point outside a specific obstacle with better clearance"""
+	var world_poly = obstacle.get_world_polygon()
+	if world_poly.is_empty():
+		return Vector2.INF
+	
+	var closest_point = Vector2.INF
+	var closest_distance = INF
+	
+	# Increase clearance distance significantly for better pathfinding success
+	var base_clearance = radius + buffer + 15.0  # Increased base clearance
+	var safety_margin = 10.0  # Additional safety margin
+	
+	# Check each edge of the polygon
+	for i in world_poly.size():
+		var edge_start = world_poly[i]
+		var edge_end = world_poly[(i + 1) % world_poly.size()]
+		
+		# Find closest point on this edge
+		var edge_point = _closest_point_on_line_segment(point, edge_start, edge_end)
+		
+		# Calculate outward direction from obstacle
+		var direction = (point - edge_point).normalized()
+		if direction.length() < 0.01:  # Handle case where point is exactly on edge
+			# Use edge normal instead
+			var edge_vector = (edge_end - edge_start).normalized()
+			direction = Vector2(-edge_vector.y, edge_vector.x)  # Perpendicular (outward)
+			
+			# Determine which side is "outward" by testing
+			var test_point1 = edge_point + direction * 5.0
+			var test_point2 = edge_point - direction * 5.0
+			
+			if _is_point_in_polygon(test_point1, world_poly):
+				direction = -direction  # Flip if we picked the wrong direction
+		
+		# Try multiple clearance distances for robustness
+		var clearance_distances = [
+			base_clearance + safety_margin,
+			base_clearance + safety_margin * 2,
+			base_clearance + safety_margin * 3
+		]
+		
+		for clearance_distance in clearance_distances:
+			var safe_candidate = edge_point + direction * clearance_distance
+			
+			# Verify this candidate is good
+			if _is_point_in_polygon(safe_candidate, bounds_polygon) and \
+			   not _is_circle_position_unsafe(safe_candidate, radius, buffer):
+				var distance = point.distance_to(safe_candidate)
+				if distance < closest_distance:
+					closest_distance = distance
+					closest_point = safe_candidate
+					break  # Found a good point, stop trying further distances
+	
+	# If no edge-based solution worked, try radial approach with multiple distances
+	if closest_point == Vector2.INF:
+		print("Edge-based approach failed, trying radial approach...")
+		var poly_center = _get_polygon_center(world_poly)
+		var direction = (point - poly_center).normalized()
+		
+		# Try progressively larger distances
+		var test_distances = [
+			base_clearance + safety_margin,
+			base_clearance + safety_margin * 2,
+			base_clearance + safety_margin * 3,
+			base_clearance + safety_margin * 4
+		]
+		
+		for dist in test_distances:
+			var candidate = point + direction * dist
+			if _is_point_in_polygon(candidate, bounds_polygon) and \
+			   not _is_circle_position_unsafe(candidate, radius, buffer):
+				print("Radial approach found safe point at distance: ", dist)
+				return candidate
+		
+		# Last resort: try 8 cardinal directions from the point
+		print("Trying cardinal directions as last resort...")
+		var directions = [
+			Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1),
+			Vector2(0.707, 0.707), Vector2(-0.707, 0.707), 
+			Vector2(0.707, -0.707), Vector2(-0.707, -0.707)
+		]
+		
+		for dir in directions:
+			for dist in test_distances:
+				var candidate = point + dir * dist
+				if _is_point_in_polygon(candidate, bounds_polygon) and \
+				   not _is_circle_position_unsafe(candidate, radius, buffer):
+					print("Cardinal direction found safe point: ", candidate)
+					return candidate
+	
+	return closest_point
+
+func _get_polygon_center(polygon: PackedVector2Array) -> Vector2:
+	"""Calculate the center point of a polygon"""
+	if polygon.is_empty():
+		return Vector2.ZERO
+	
+	var sum = Vector2.ZERO
+	for point in polygon:
+		sum += point
+	
+	return sum / polygon.size()
+
+func _closest_point_on_line_segment(point: Vector2, line_start: Vector2, line_end: Vector2) -> Vector2:
+	"""Find the closest point on a line segment to a given point"""
+	var line_vec = line_end - line_start
+	var point_vec = point - line_start
+	
+	var line_len_sq = line_vec.length_squared()
+	if line_len_sq < 0.001:
+		return line_start
+	
+	var t = clamp(point_vec.dot(line_vec) / line_len_sq, 0.0, 1.0)
+	return line_start + t * line_vec
+
 # Add this new function to pathfinder_system.gd (after _update_grid_around_obstacle)
 func _get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array[Pathfinder]:
 	"""Get pathfinders whose paths might be affected by this obstacle"""

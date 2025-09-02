@@ -15,6 +15,13 @@ class_name PathfinderSystem
 @export var pathfinders: Array[Pathfinder] = []
 @export var obstacles: Array[PathfinderObstacle] = []
 
+var obstacle_validity_cache: Dictionary = {}
+var validity_cache_timer: float = 0.0
+var validity_cache_interval: float = 0.5  # Check validity every 0.5 seconds
+var pending_static_changes: Array[PathfinderObstacle] = []
+var batch_timer: float = 0.0
+var batch_interval: float = 0.1  # Process batches every 0.1 seconds
+
 var grid: Dictionary = {}
 var dynamic_obstacles: Array[PathfinderObstacle] = []
 
@@ -48,10 +55,24 @@ func _physics_process(delta: float) -> void:
 		return
 	_update_dynamic_system(delta)
 
-# SIMPLIFIED: Combined dynamic update logic
 func _update_dynamic_system(delta):
 	last_grid_update += delta
 	path_invalidation_timer += delta
+	validity_cache_timer += delta
+	batch_timer += delta
+	
+	# Update validity cache periodically
+	if validity_cache_timer >= validity_cache_interval:
+		_update_validity_cache()
+		validity_cache_timer = 0.0
+	
+	# Process batched static/dynamic changes
+	if batch_timer >= batch_interval and not pending_static_changes.is_empty():
+		_process_batched_static_changes()
+		batch_timer = 0.0
+	
+	# Clean up invalid obstacles lazily
+	_lazy_cleanup_obstacles()
 	
 	var should_update_grid = grid_dirty and last_grid_update >= dynamic_update_rate
 	var should_invalidate_paths = auto_invalidate_paths and path_invalidation_timer >= dynamic_update_rate * 2
@@ -61,11 +82,87 @@ func _update_dynamic_system(delta):
 		grid_dirty = false
 		last_grid_update = 0.0
 	
-	# Inline the _has_dynamic_obstacles() check
-	if should_invalidate_paths and not dynamic_obstacles.is_empty():
+	if should_invalidate_paths and not _get_valid_dynamic_obstacles().is_empty():
 		_invalidate_affected_paths()
 		path_invalidation_timer = 0.0
 
+func _update_validity_cache():
+	"""Update cached validity for all obstacles"""
+	obstacle_validity_cache.clear()
+	
+	for obstacle in obstacles:
+		obstacle_validity_cache[obstacle] = is_instance_valid(obstacle)
+	
+	for obstacle in dynamic_obstacles:
+		if obstacle not in obstacle_validity_cache:
+			obstacle_validity_cache[obstacle] = is_instance_valid(obstacle)
+
+func _is_obstacle_valid_cached(obstacle: PathfinderObstacle) -> bool:
+	"""Get cached validity or fallback to real check"""
+	if obstacle in obstacle_validity_cache:
+		return obstacle_validity_cache[obstacle]
+	else:
+		# Fallback for new obstacles not yet cached
+		return is_instance_valid(obstacle)
+
+func _lazy_cleanup_obstacles():
+	"""Remove invalid obstacles only when needed, not immediately"""
+	# Only clean if we have cached validity info
+	if obstacle_validity_cache.is_empty():
+		return
+	
+	# Clean up main obstacles array
+	var initial_size = obstacles.size()
+	obstacles = obstacles.filter(func(o): return _is_obstacle_valid_cached(o))
+	
+	# Clean up dynamic obstacles array
+	dynamic_obstacles = dynamic_obstacles.filter(func(o): return _is_obstacle_valid_cached(o))
+	
+	# Log cleanup if significant
+	if obstacles.size() < initial_size - 2:  # Only log if more than 2 removed
+		print("Cleaned up ", initial_size - obstacles.size(), " invalid obstacles")
+
+func _get_valid_dynamic_obstacles() -> Array[PathfinderObstacle]:
+	"""Get filtered valid dynamic obstacles (cached)"""
+	var valid_dynamic: Array[PathfinderObstacle] = []
+	
+	for obstacle in dynamic_obstacles:
+		if _is_obstacle_valid_cached(obstacle) and not obstacle.is_static:
+			valid_dynamic.append(obstacle)
+	
+	return valid_dynamic
+
+func _process_batched_static_changes():
+	"""Process multiple static/dynamic state changes in one batch"""
+	print("Processing ", pending_static_changes.size(), " batched static changes")
+	
+	var became_static = 0
+	var became_dynamic = 0
+	
+	for obstacle in pending_static_changes:
+		if not _is_obstacle_valid_cached(obstacle):
+			continue
+			
+		if obstacle.is_static:
+			# Became static - remove from dynamic list
+			if obstacle in dynamic_obstacles:
+				dynamic_obstacles.erase(obstacle)
+				became_static += 1
+				if obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
+					obstacle.obstacle_changed.disconnect(_on_obstacle_changed)
+		else:
+			# Became dynamic - add to dynamic list
+			if obstacle not in dynamic_obstacles:
+				dynamic_obstacles.append(obstacle)
+				became_dynamic += 1
+				if not obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
+					obstacle.obstacle_changed.connect(_on_obstacle_changed)
+	
+	if became_static > 0 or became_dynamic > 0:
+		print("Batch processed: ", became_static, " became static, ", became_dynamic, " became dynamic")
+		grid_dirty = true  # Trigger grid update after batch
+	
+	pending_static_changes.clear()
 
 func _initialize_system():
 	_register_initial_pathfinders()
@@ -99,13 +196,14 @@ func _build_grid():
 func _update_grid_for_dynamic_obstacles():
 	print("=== UPDATING GRID FOR DYNAMIC OBSTACLES ===")
 	
-	dynamic_obstacles = dynamic_obstacles.filter(func(o): return is_instance_valid(o) and not o.is_static)
+	# Use cached validation instead of repeated is_instance_valid calls
+	var valid_dynamic = _get_valid_dynamic_obstacles()
 	
-	if dynamic_obstacles.is_empty():
-		print("No dynamic obstacles - skipping grid update")
+	if valid_dynamic.is_empty():
+		print("No valid dynamic obstacles - skipping grid update")
 		return
 	
-	var affected_bounds = _get_dynamic_obstacles_bounds()
+	var affected_bounds = _get_dynamic_obstacles_bounds_cached(valid_dynamic)
 	print("Affected bounds: ", affected_bounds)
 	
 	if affected_bounds.size.x <= 0 or affected_bounds.size.y <= 0:
@@ -115,6 +213,24 @@ func _update_grid_for_dynamic_obstacles():
 	for grid_pos in grid.keys():
 		if affected_bounds.has_point(grid_pos):
 			grid[grid_pos] = _is_grid_point_clear(grid_pos)
+
+func _get_dynamic_obstacles_bounds_cached(valid_dynamic: Array[PathfinderObstacle]) -> Rect2:
+	"""Get bounds using already-filtered valid dynamic obstacles"""
+	if valid_dynamic.is_empty():
+		return Rect2()
+	
+	var min_pos = Vector2(INF, INF)
+	var max_pos = Vector2(-INF, -INF)
+	
+	for obstacle in valid_dynamic:
+		var world_poly = obstacle.get_world_polygon()
+		for point in world_poly:
+			min_pos = min_pos.min(point)
+			max_pos = max_pos.max(point)
+	
+	var buffer = grid_size * 2
+	return Rect2(min_pos - Vector2(buffer, buffer), (max_pos - min_pos) + Vector2(buffer * 2, buffer * 2))
+
 
 # SIMPLIFIED: Get bounds of dynamic obstacles
 func _get_dynamic_obstacles_bounds() -> Rect2:
@@ -166,20 +282,13 @@ func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 		obstacle.static_state_changed.connect(_on_obstacle_static_changed.bind(obstacle))
 
 func _on_obstacle_static_changed(is_now_static: bool, obstacle: PathfinderObstacle):
-	if is_now_static:
-		# Became static - remove from dynamic list
-		dynamic_obstacles.erase(obstacle)
-		if obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
-			obstacle.obstacle_changed.disconnect(_on_obstacle_changed)
-	else:
-		# Became dynamic - add to dynamic list
-		if obstacle not in dynamic_obstacles:
-			dynamic_obstacles.append(obstacle)
-		if not obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
-			obstacle.obstacle_changed.connect(_on_obstacle_changed)
+	"""Queue static/dynamic state changes for batch processing"""
+	if obstacle not in pending_static_changes:
+		pending_static_changes.append(obstacle)
 	
-	# Trigger grid update since obstacle type changed
-	grid_dirty = true
+	# For immediate critical cases, still process right away
+	if pending_static_changes.size() > 10:  # Prevent queue from getting too large
+		_process_batched_static_changes()
 
 func unregister_obstacle(obstacle: PathfinderObstacle):
 	obstacles.erase(obstacle)
@@ -532,7 +641,7 @@ func _reconstruct_path(came_from_dict: Dictionary, current: Vector2, start: Vect
 
 # Utility functions
 func get_dynamic_obstacle_count() -> int:
-	return obstacles.filter(func(o): return is_instance_valid(o) and not o.is_static).size()
+	return _get_valid_dynamic_obstacles().size()
 
 
 func is_grid_dirty() -> bool:

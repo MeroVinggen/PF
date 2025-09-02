@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://b4ha7wyhvby2n"]
+[gd_scene load_steps=6 format=3 uid="uid://b4ha7wyhvby2n"]
 
 [ext_resource type="Script" uid="uid://cwh8y4ydbcsfn" path="res://demo/demo.gd" id="1_uqdso"]
 [ext_resource type="Script" uid="uid://iy0w45a50gju" path="res://addons/pathfinding2d/pathfinder_system.gd" id="2_umghc"]
 [ext_resource type="Script" uid="uid://dsw8ahtan3evv" path="res://addons/pathfinding2d/pathfinder_obstacle.gd" id="3_eaos1"]
 [ext_resource type="Script" uid="uid://c0akywfx8v7xg" path="res://addons/pathfinding2d/pathfinder.gd" id="4_wlawv"]
+[ext_resource type="Script" uid="uid://dq8my7tks08qu" path="res://addons/pathfinding2d/pathfinder_debug_renderer.gd" id="5_eaos1"]
 
 [node name="Demo" type="Node2D"]
 script = ExtResource("1_uqdso")
@@ -31,5 +32,14 @@ metadata/_custom_type_script = "uid://dsw8ahtan3evv"
 [node name="Pathfinder" type="Node2D" parent="."]
 position = Vector2(129, 107)
 script = ExtResource("4_wlawv")
-agent_buffer = 0.0
+agent_buffer = 5.0
 metadata/_custom_type_script = "uid://c0akywfx8v7xg"
+
+[node name="PathfindingDebugRenderer" type="Node2D" parent="." node_paths=PackedStringArray("systems_to_debug", "obstacles_to_debug", "pathfinders_to_debug")]
+script = ExtResource("5_eaos1")
+systems_to_debug = [NodePath("../PathfinderSystem")]
+obstacles_to_debug = [NodePath("../PathfinderObstacleS"), NodePath("../PathfinderObstacleD")]
+pathfinders_to_debug = [NodePath("../Pathfinder")]
+draw_grid = true
+draw_fps = 10.0
+metadata/_custom_type_script = "uid://dq8my7tks08qu"

@@ -2,31 +2,6 @@
 extends Node2D
 class_name Pathfinder
 
-@export var agent_radius: float = 10.0
-@export var agent_buffer: float = 2.0
-
-@export var auto_move: bool = true
-@export var debug_draw: bool = true
-@export var agent_color: Color = Color.GREEN
-@export var path_color: Color = Color.YELLOW
-@export var arrival_distance: float = 8.0
-
-# Dynamic pathfinding settings
-@export var path_validation_rate: float = 0.2
-@export var auto_recalculate: bool = true
-
-var system: PathfinderSystem
-var current_path: PackedVector2Array = PackedVector2Array()
-var target_position: Vector2
-var path_index: int = 0
-var is_moving: bool = false
-
-
-# Dynamic pathfinding variables
-var path_validation_timer: float = 0.0
-var consecutive_failed_recalcs: int = 0
-var max_failed_recalcs: int = 3
-
 signal path_found(path: PackedVector2Array)
 signal destination_reached()
 signal path_blocked()
@@ -35,14 +10,28 @@ signal agent_unstuck()
 signal path_invalidated()
 signal path_recalculated()
 
+@export var agent_radius: float = 10.0
+@export var agent_buffer: float = 2.0
+
+# Dynamic pathfinding settings
+@export var path_validation_rate: float = 0.2
+
+var system: PathfinderSystem
+var current_path: PackedVector2Array = PackedVector2Array()
+var target_position: Vector2
+var path_index: int = 0
+var is_moving: bool = false
+
+# Dynamic pathfinding variables
+var path_validation_timer: float = 0.0
+var consecutive_failed_recalcs: int = 0
+var max_failed_recalcs: int = 3
+
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 	
 	_update_path_validation(delta)
-	
-	if debug_draw:
-		queue_redraw()
 
 func _exit_tree():
 	if system and not Engine.is_editor_hint():
@@ -221,38 +210,6 @@ func is_path_valid() -> bool:
 func recalculate_path():
 	if is_moving:
 		_recalculate_or_find_alternative()
-
-func _draw() -> void:
-	if not debug_draw:
-		return
-	
-	# Draw agent with status color
-	var color = agent_color
-	if consecutive_failed_recalcs > 0:
-		color = Color.PURPLE
-	#elif stuck_timer > stuck_time_threshold * 0.7:
-		#color = Color.YELLOW
-	
-	draw_circle(Vector2.ZERO, agent_radius, color * 0.7)
-	draw_arc(Vector2.ZERO, agent_radius, 0, TAU, 32, color, 2.0)
-	
-	# Draw path
-	if current_path.size() > 1:
-		for i in range(current_path.size() - 1):
-			var start = to_local(current_path[i])
-			var end = to_local(current_path[i + 1])
-			var segment_color = path_color if i >= path_index else Color.GRAY
-			draw_line(start, end, segment_color, 3.0)
-		
-		# Draw waypoints
-		for i in range(current_path.size()):
-			var point = to_local(current_path[i])
-			var waypoint_color = Color.WHITE if i == path_index else (Color.GRAY if i < path_index else path_color)
-			draw_circle(point, 5.0, waypoint_color)
-	
-	# Draw target
-	if is_moving and target_position != Vector2.ZERO:
-		draw_circle(to_local(target_position), 8.0, Color.MAGENTA)
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

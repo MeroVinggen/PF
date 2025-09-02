@@ -16,6 +16,7 @@ func _ready():
 	_setup_pathfinder_signals()
 	_setup_demo_ui()
 	
+	# ---- movement_controller
 	add_child(movement_controller)
 	movement_controller.setup(pathfinder, pathfinder)
 	movement_controller.waypoint_reached.connect(_on_waypoint_reached)
@@ -149,29 +150,6 @@ func _on_path_invalidated():
 func _on_path_recalculated():
 	print("✓ Path successfully recalculated")
 
-
-func _draw():
-	"""Draw additional debug information"""
-	if not pathfinder_system:
-		return
-	
-	# Draw system bounds
-	if pathfinder_system.bounds_polygon.size() >= 3:
-		var points = pathfinder_system.bounds_polygon
-		for i in range(points.size()):
-			var start = points[i]
-			var end = points[(i + 1) % points.size()]
-			draw_line(start, end, Color.BLUE, 2.0)
-	
-	# Draw grid points (sampling for performance)
-	if pathfinder_system.grid.size() > 0:
-		var sample_rate = max(1, pathfinder_system.grid.size() / 500)  # Limit to ~500 points
-		var i = 0
-		for pos in pathfinder_system.grid.keys():
-			if i % sample_rate == 0:
-				var color = Color.GREEN if pathfinder_system.grid[pos] else Color.RED
-				draw_circle(pos, 2.0, color * 0.3)
-			i += 1
 
 # UPDATED: Simplified helper functions
 func _get_polygon_center(polygon: PackedVector2Array) -> Vector2:

@@ -13,8 +13,6 @@ signal obstacle_changed()
 ])
 
 @export var is_static: bool = true : set = _set_is_static
-@export var debug_draw: bool = true
-@export var obstacle_color: Color = Color.RED
 
 var system: PathfinderSystem
 var last_position: Vector2
@@ -111,31 +109,6 @@ func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
 		j = i
 	
 	return inside
-
-func _draw():
-	if not debug_draw:
-		return
-	
-	if obstacle_polygon.size() >= 3:
-		# Color coding: red for static, orange for dynamic
-		var draw_color = obstacle_color
-		if not is_static:
-			draw_color = Color.ORANGE
-		
-		# Draw filled polygon
-		draw_colored_polygon(obstacle_polygon, draw_color * 0.7)
-		# Draw outline
-		var outline = obstacle_polygon + PackedVector2Array([obstacle_polygon[0]])
-		draw_polyline(outline, draw_color, 2.0)
-		
-		# Draw dynamic indicator
-		if not is_static:
-			draw_circle(Vector2.ZERO, 8.0, Color.YELLOW)
-			draw_circle(Vector2.ZERO, 6.0, Color.ORANGE)
-	else:
-		# Draw as points if not enough vertices
-		for point in obstacle_polygon:
-			draw_circle(point, 5.0, obstacle_color)
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

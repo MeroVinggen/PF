@@ -42,7 +42,6 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: f
 		print("Updating grid for dynamic obstacles...")
 		system.grid_manager.update_grid_for_dynamic_obstacles()
 		system.grid_dirty = false
-		system.last_grid_update = 0.0
 	
 	if _is_safe_circle_path(start, end, radius, buffer):
 		print("Using direct path")
@@ -70,7 +69,7 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: f
 
 func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: float) -> bool:
 	var distance = start.distance_to(end)
-	var samples = max(int(distance / (system.grid_size * PathfindingConstants.SAMPLE_DISTANCE_FACTOR)), 8)
+	var samples = max(int(distance / (system.grid_size * PathfindingConstants.SAMPLE_DISTANCE_FACTOR)), PathfindingConstants.MIN_PATH_SAMPLES)
 	
 	for i in samples + 1:
 		var t = float(i) / float(samples)

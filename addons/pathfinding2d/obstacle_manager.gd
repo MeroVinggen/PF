@@ -3,9 +3,6 @@ extends RefCounted
 class_name ObstacleManager
 
 var system: PathfinderSystem
-var obstacle_validity_cache: Dictionary = {}
-var validity_cache_timer: float = 0.0
-var validity_cache_interval: float = 0.5  # Check validity every 0.5 seconds
 var cache_manager: CacheManager
 var pending_static_changes: Array[PathfinderObstacle] = []
 var batch_timer: float = 0.0
@@ -99,17 +96,6 @@ func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 			obstacle.obstacle_changed.connect(_on_obstacle_changed)
 	if not obstacle.static_state_changed.is_connected(_on_obstacle_static_changed):
 		obstacle.static_state_changed.connect(_on_obstacle_static_changed.bind(obstacle))
-
-func _update_validity_cache():
-	"""Update cached validity for all obstacles"""
-	obstacle_validity_cache.clear()
-	
-	for obstacle in system.obstacles:
-		obstacle_validity_cache[obstacle] = is_instance_valid(obstacle)
-	
-	for obstacle in dynamic_obstacles:
-		if obstacle not in obstacle_validity_cache:
-			obstacle_validity_cache[obstacle] = is_instance_valid(obstacle)
 
 func _is_obstacle_valid_cached(obstacle: PathfinderObstacle) -> bool:
 	"""Get cached validity or fallback to real check"""

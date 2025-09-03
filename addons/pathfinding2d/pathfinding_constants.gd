@@ -9,6 +9,7 @@ const GOAL_TOLERANCE_MIN_FACTOR: float = 0.5  # Multiplied by radius
 const NODE_DISTANCE_THRESHOLD: float = 0.3  # For node matching in open set
 const SAFETY_MARGIN: float = 0.5  # Added to collision checks
 const SAMPLE_DISTANCE_FACTOR: float = 0.5  # Grid_size * factor for path sampling
+const MIN_PATH_SAMPLES: int = 8 # samples calculation fallback
 
 # === CIRCLE POSITION FINDING CONSTANTS ===
 const SEARCH_STEP_FACTOR: float = 0.5  # min(grid_size * factor, radius * factor)

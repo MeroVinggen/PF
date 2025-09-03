@@ -26,8 +26,8 @@ func _set_is_static(value: bool):
 
 func _has_changed() -> bool:
 	# More sensitive change detection for better responsiveness
-	var pos_threshold = 0.3 if not is_static else 0.8  # Tighter for dynamic
-	var rot_threshold = 0.003 if not is_static else 0.008
+	var pos_threshold = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD if not is_static else PathfindingConstants.STATIC_POSITION_THRESHOLD # Triggers for dynamic
+	var rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD if not is_static else PathfindingConstants.STATIC_ROTATION_THRESHOLD
 	
 	var pos_changed = last_position.distance_to(global_position) > pos_threshold
 	var poly_changed = obstacle_polygon.size() != last_polygon.size()
@@ -46,12 +46,12 @@ func _has_changed() -> bool:
 	return pos_changed or poly_changed or transform_changed
 
 func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
-	var pos_threshold = 0.3 if not is_static else 0.8  # Tighter for dynamic
-	var rot_threshold = 0.003 if not is_static else 0.008
-	
+	var pos_threshold = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD if not is_static else PathfindingConstants.STATIC_POSITION_THRESHOLD  # Tighter for dynamic
+	var rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD if not is_static else PathfindingConstants.STATIC_ROTATION_THRESHOLD
+
 	return (a.origin.distance_to(b.origin) < pos_threshold and 
 			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and
-			(a.get_scale() - b.get_scale()).length() < 0.01)
+			(a.get_scale() - b.get_scale()).length() < PathfindingConstants.TRANSFORM_SCALE_THRESHOLD)
 
 func _exit_tree():
 	if system and not Engine.is_editor_hint():
@@ -80,7 +80,6 @@ func _store_last_state():
 	last_position = global_position
 	last_polygon = obstacle_polygon.duplicate()
 	last_transform = global_transform
-
 
 func get_world_polygon() -> PackedVector2Array:
 	var world_poly: PackedVector2Array = []

@@ -24,7 +24,7 @@ class PathNode:
 func _init(pathfinder_system: PathfinderSystem):
 	system = pathfinder_system
 
-func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = 2.0) -> PackedVector2Array:
+func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = PathfindingConstants.SAFETY_MARGIN) -> PackedVector2Array:
 	print("=== PATHFINDING REQUEST ===")
 	print("Start: ", start, " End: ", end, " Radius: ", radius, " Buffer: ", buffer)
 	print("Grid dirty: ", system.grid_dirty)
@@ -70,7 +70,7 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: f
 
 func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: float) -> bool:
 	var distance = start.distance_to(end)
-	var samples = max(int(distance / (system.grid_size * 0.5)), 8)
+	var samples = max(int(distance / (system.grid_size * PathfindingConstants.SAMPLE_DISTANCE_FACTOR)), 8)
 	
 	for i in samples + 1:
 		var t = float(i) / float(samples)
@@ -100,7 +100,7 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
 		
 		# Add small tolerance to prevent edge cases
-		var safety_margin = 0.5
+		var safety_margin = PathfindingConstants.SAFETY_MARGIN
 		if distance_to_obstacle < (total_radius - safety_margin):
 			return true
 	
@@ -115,14 +115,13 @@ func _find_safe_circle_position(pos: Vector2, radius: float, buffer: float) -> V
 	var snapped = system.grid_manager.snap_to_grid(pos)
 	if not _is_circle_position_unsafe(snapped, radius, buffer):
 		return snapped
-	
-	# For larger agents or fine grids, search in expanding circles
-	var search_step = min(system.grid_size * 0.5, radius * 0.5)  # Smaller steps for precision
-	var max_search_radius = max(system.grid_size * 12, radius * 6)  # Scale with agent size
-	
+
+	var search_step = min(system.grid_size * PathfindingConstants.SEARCH_STEP_FACTOR, radius * PathfindingConstants.SEARCH_STEP_FACTOR)
+	var max_search_radius = max(system.grid_size * PathfindingConstants.MAX_SEARCH_RADIUS_GRID_FACTOR, radius * PathfindingConstants.MAX_SEARCH_RADIUS_AGENT_FACTOR)
+
 	# Try positions in expanding circles around target
 	for search_radius in range(int(search_step), int(max_search_radius), int(search_step)):
-		var angle_step = PI / 8  # 8 directions per circle
+		var angle_step = PathfindingConstants.SEARCH_ANGLE_STEP
 		
 		for angle in range(0, int(TAU / angle_step)):
 			var test_angle = angle * angle_step
@@ -150,11 +149,11 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	open_set.append(start_node)
 	
 	var iterations = 0
-	var max_iterations = 3000  # Increased for better pathfinding
+	var max_iterations = PathfindingConstants.MAX_PATHFINDING_ITERATIONS
 	
 	# Dynamic goal tolerance based on agent size
-	var goal_tolerance = max(system.grid_size * 0.7, radius * 0.5)
-	
+	var goal_tolerance = max(system.grid_size * PathfindingConstants.GOAL_TOLERANCE_FACTOR, radius * PathfindingConstants.GOAL_TOLERANCE_MIN_FACTOR)
+
 	while not open_set.is_empty() and iterations < max_iterations:
 		iterations += 1
 		
@@ -191,7 +190,7 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 			
 			var existing_node = null
 			for node in open_set:
-				if node.position.distance_to(neighbor_pos) < system.grid_size * 0.3:  # Close enough
+				if node.position.distance_to(neighbor_pos) < system.grid_size * PathfindingConstants.NODE_DISTANCE_THRESHOLD:  # Close enough
 					existing_node = node
 					break
 			
@@ -211,8 +210,8 @@ func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Arra
 	
 	# Use smaller steps for larger agents to find more precise paths
 	var step_size = system.grid_size
-	if radius > system.grid_size * 0.7:
-		step_size = max(system.grid_size * 0.5, radius * 0.8)  # Adaptive step size
+	if radius > system.grid_size * PathfindingConstants.LARGE_AGENT_THRESHOLD:
+		step_size = max(system.grid_size * PathfindingConstants.MIN_STEP_SIZE_FACTOR, radius * PathfindingConstants.ADAPTIVE_STEP_FACTOR)  # Adaptive step size
 	
 	# Standard 8-direction movement
 	var directions = [
@@ -223,8 +222,8 @@ func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Arra
 	]
 	
 	# For larger agents, also try half-steps to find tighter passages
-	if radius > system.grid_size * 0.5:
-		var half_step = step_size * 0.5
+	if radius > system.grid_size * PathfindingConstants.HALF_STEP_THRESHOLD:
+		var half_step = step_size * PathfindingConstants.MIN_STEP_SIZE_FACTOR
 		directions.append_array([
 			Vector2(half_step, 0), Vector2(-half_step, 0),
 			Vector2(0, half_step), Vector2(0, -half_step)
@@ -298,7 +297,7 @@ func _distance_point_to_line_segment(point: Vector2, line_start: Vector2, line_e
 	var point_vec = point - line_start
 	
 	var line_len_sq = line_vec.length_squared()
-	if line_len_sq < 0.001:
+	if line_len_sq < PathfindingConstants.MIN_LINE_LENGTH_SQUARED:
 		return point.distance_to(line_start)
 	
 	var t = clamp(point_vec.dot(line_vec) / line_len_sq, 0.0, 1.0)

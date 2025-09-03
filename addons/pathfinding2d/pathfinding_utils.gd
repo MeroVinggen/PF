@@ -45,7 +45,7 @@ static func distance_point_to_line_segment(point: Vector2, line_start: Vector2, 
 	var point_vec = point - line_start
 	
 	var line_len_sq = line_vec.length_squared()
-	if line_len_sq < 0.001:
+	if line_len_sq < PathfindingConstants.MIN_LINE_LENGTH_SQUARED:
 		return point.distance_to(line_start)
 	
 	var t = clamp(point_vec.dot(line_vec) / line_len_sq, 0.0, 1.0)
@@ -59,7 +59,7 @@ static func closest_point_on_line_segment(point: Vector2, line_start: Vector2, l
 	var point_vec = point - line_start
 	
 	var line_len_sq = line_vec.length_squared()
-	if line_len_sq < 0.001:
+	if line_len_sq < PathfindingConstants.MIN_LINE_LENGTH_SQUARED:
 		return line_start
 	
 	var t = clamp(point_vec.dot(line_vec) / line_len_sq, 0.0, 1.0)

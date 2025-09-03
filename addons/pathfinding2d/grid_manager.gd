@@ -51,7 +51,7 @@ func update_grid_around_obstacle(obstacle: PathfinderObstacle):
 	var obstacle_bounds = _get_polygon_bounds(world_poly)
 	
 	# Expand bounds for agent clearance
-	obstacle_bounds = obstacle_bounds.grow(system.grid_size * 3)
+	obstacle_bounds = obstacle_bounds.grow(system.grid_size * PathfindingConstants.GRID_EXPANSION_FACTOR)
 	
 	var updated_count = 0
 	for grid_pos in grid.keys():
@@ -107,7 +107,7 @@ func _get_dynamic_obstacles_bounds_cached(valid_dynamic: Array[PathfinderObstacl
 			min_pos = min_pos.min(point)
 			max_pos = max_pos.max(point)
 	
-	var buffer = system.grid_size * 2
+	var buffer = system.grid_size * PathfindingConstants.GRID_BUFFER_FACTOR
 	return Rect2(min_pos - Vector2(buffer, buffer), (max_pos - min_pos) + Vector2(buffer * 2, buffer * 2))
 
 func _get_polygon_bounds(polygon: PackedVector2Array) -> Rect2:

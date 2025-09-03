@@ -6,29 +6,24 @@ var system: PathfinderSystem
 var obstacle_validity_cache: Dictionary = {}
 var validity_cache_timer: float = 0.0
 var validity_cache_interval: float = 0.5  # Check validity every 0.5 seconds
+var cache_manager: CacheManager
 var pending_static_changes: Array[PathfinderObstacle] = []
 var batch_timer: float = 0.0
-var batch_interval: float = 0.1  # Process batches every 0.1 seconds
+var batch_interval: float = PathfindingConstants.BATCH_PROCESSING_INTERVAL
 var dynamic_obstacles: Array[PathfinderObstacle] = []
 
 func _init(pathfinder_system: PathfinderSystem):
 	system = pathfinder_system
+	cache_manager = CacheManager.new()
 
 func update_system(delta: float):
-	validity_cache_timer += delta
+	cache_manager.update_cache(delta, system.obstacles + dynamic_obstacles)
 	batch_timer += delta
-	
-	# Update validity cache periodically
-	if validity_cache_timer >= validity_cache_interval:
-		_update_validity_cache()
-		validity_cache_timer = 0.0
-	
-	# Process batched static/dynamic changes
+	 
 	if batch_timer >= batch_interval and not pending_static_changes.is_empty():
 		_process_batched_static_changes()
 		batch_timer = 0.0
-	
-	# Clean up invalid obstacles lazily
+	 
 	_lazy_cleanup_obstacles()
 
 func register_obstacle(obstacle: PathfinderObstacle):
@@ -55,7 +50,7 @@ func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array
 	var obstacle_bounds = PathfindingUtils.get_polygon_bounds(world_poly)
 	
 	# Expand bounds to account for agent sizes
-	obstacle_bounds = obstacle_bounds.grow(50.0)  # Conservative expansion
+	obstacle_bounds = obstacle_bounds.grow(PathfindingConstants.BOUNDS_EXPANSION_CONSERVATIVE)  # Conservative expansion
 	
 	for pathfinder in system.pathfinders:
 		if not is_instance_valid(pathfinder) or not pathfinder.is_moving:
@@ -93,13 +88,7 @@ func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array
 
 func _get_valid_dynamic_obstacles() -> Array[PathfinderObstacle]:
 	"""Get filtered valid dynamic obstacles (cached)"""
-	var valid_dynamic: Array[PathfinderObstacle] = []
-	
-	for obstacle in dynamic_obstacles:
-		if _is_obstacle_valid_cached(obstacle) and not obstacle.is_static:
-			valid_dynamic.append(obstacle)
-	
-	return valid_dynamic
+	return cache_manager.get_cached_valid_items(dynamic_obstacles)
 
 func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 	obstacle.system = system
@@ -124,28 +113,14 @@ func _update_validity_cache():
 
 func _is_obstacle_valid_cached(obstacle: PathfinderObstacle) -> bool:
 	"""Get cached validity or fallback to real check"""
-	if obstacle in obstacle_validity_cache:
-		return obstacle_validity_cache[obstacle]
-	else:
-		# Fallback for new obstacles not yet cached
-		return is_instance_valid(obstacle)
+	return cache_manager.is_item_valid_cached(obstacle)
 
 func _lazy_cleanup_obstacles():
 	"""Remove invalid obstacles only when needed, not immediately"""
-	# Only clean if we have cached validity info
-	if obstacle_validity_cache.is_empty():
+	if cache_manager.validity_cache.is_empty():
 		return
-	
-	# Clean up main obstacles array
-	var initial_size = system.obstacles.size()
-	system.obstacles = system.obstacles.filter(func(o): return _is_obstacle_valid_cached(o))
-	
-	# Clean up dynamic obstacles array
-	dynamic_obstacles = dynamic_obstacles.filter(func(o): return _is_obstacle_valid_cached(o))
-	
-	# Log cleanup if significant
-	if system.obstacles.size() < initial_size - 2:  # Only log if more than 2 removed
-		print("Cleaned up ", initial_size - system.obstacles.size(), " invalid obstacles")
+	system.obstacles = cache_manager.remove_invalid_items(system.obstacles)
+	dynamic_obstacles = cache_manager.remove_invalid_items(dynamic_obstacles)
 
 func _process_batched_static_changes():
 	"""Process multiple static/dynamic state changes in one batch"""
@@ -185,7 +160,7 @@ func _on_obstacle_static_changed(is_now_static: bool, obstacle: PathfinderObstac
 		pending_static_changes.append(obstacle)
 	
 	# For immediate critical cases, still process right away
-	if pending_static_changes.size() > 10:  # Prevent queue from getting too large
+	if pending_static_changes.size() > PathfindingConstants.MAX_BATCH_SIZE:  # Prevent queue from getting too large
 		_process_batched_static_changes()
 
 func _on_obstacle_changed():

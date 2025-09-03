@@ -204,8 +204,8 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 	var closest_distance = INF
 	
 	# Increase clearance distance significantly for better pathfinding success
-	var base_clearance = radius + buffer + 15.0  # Increased base clearance
-	var safety_margin = 10.0  # Additional safety margin
+	var base_clearance = radius + buffer + PathfindingConstants.CLEARANCE_BASE_ADDITION  # Increased base clearance
+	var safety_margin = PathfindingConstants.CLEARANCE_SAFETY_MARGIN  # Additional safety margin
 	
 	# Check each edge of the polygon
 	for i in world_poly.size():
@@ -230,11 +230,9 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 				direction = -direction  # Flip if we picked the wrong direction
 		
 		# Try multiple clearance distances for robustness
-		var clearance_distances = [
-			base_clearance + safety_margin,
-			base_clearance + safety_margin * 2,
-			base_clearance + safety_margin * 3
-		]
+		var clearance_distances = []
+		for multiplier in PathfindingConstants.CLEARANCE_MULTIPLIERS:
+			clearance_distances.append(base_clearance + safety_margin * multiplier)
 		
 		for clearance_distance in clearance_distances:
 			var safe_candidate = edge_point + direction * clearance_distance
@@ -255,12 +253,9 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		var direction = (point - poly_center).normalized()
 		
 		# Try progressively larger distances
-		var test_distances = [
-			base_clearance + safety_margin,
-			base_clearance + safety_margin * 2,
-			base_clearance + safety_margin * 3,
-			base_clearance + safety_margin * 4
-		]
+		var test_distances = []
+		for multiplier in PathfindingConstants.CLEARANCE_MULTIPLIERS:
+			test_distances.append(base_clearance + safety_margin * multiplier)
 		
 		for dist in test_distances:
 			var candidate = point + direction * dist
@@ -271,11 +266,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		
 		# Last resort: try 8 cardinal directions from the point
 		print("Trying cardinal directions as last resort...")
-		var directions = [
-			Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1),
-			Vector2(0.707, 0.707), Vector2(-0.707, 0.707), 
-			Vector2(0.707, -0.707), Vector2(-0.707, -0.707)
-		]
+		var directions = PathfindingConstants.CARDINAL_DIRECTIONS + PathfindingConstants.DIAGONAL_DIRECTIONS
 		
 		for dir in directions:
 			for dist in test_distances:

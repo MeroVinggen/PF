@@ -23,7 +23,7 @@ var is_moving: bool = false
 
 var path_validation_timer: float = 0.0
 var consecutive_failed_recalcs: int = 0
-var max_failed_recalcs: int = 3
+var max_failed_recalcs: int = PathfindingConstants.MAX_FAILED_RECALCULATIONS
 
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
@@ -84,7 +84,7 @@ func _pause_and_retry():
 	is_moving = false
 	consecutive_failed_recalcs = 0
 	
-	var timer = get_tree().create_timer(2.0)
+	var timer = get_tree().create_timer(PathfindingConstants.RETRY_DELAY_SECONDS)
 	timer.timeout.connect(func(): 
 		print("Retrying pathfinding...")
 		if find_path_to(target_position):

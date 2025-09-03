@@ -15,6 +15,8 @@ class_name PathfinderSystem
 @export var pathfinders: Array[Pathfinder] = []
 @export var obstacles: Array[PathfinderObstacle] = []
 
+@onready var shared_validator: PathValidator = PathValidator.new(self)
+
 var obstacle_validity_cache: Dictionary = {}
 var validity_cache_timer: float = 0.0
 var validity_cache_interval: float = 0.5  # Check validity every 0.5 seconds
@@ -308,6 +310,7 @@ func register_pathfinder(pathfinder: Pathfinder):
 
 func _prepare_registered_pathfinder(pathfinder: Pathfinder):
 	pathfinder.system = self
+	pathfinder.validator = shared_validator
 
 func unregister_pathfinder(pathfinder: Pathfinder):
 	pathfinders.erase(pathfinder)

@@ -12,17 +12,15 @@ signal path_recalculated()
 
 @export var agent_radius: float = 10.0
 @export var agent_buffer: float = 2.0
-
-# Dynamic pathfinding settings
 @export var path_validation_rate: float = 0.2
 
 var system: PathfinderSystem
+var validator: PathValidator
 var current_path: PackedVector2Array = PackedVector2Array()
 var target_position: Vector2
 var path_index: int = 0
 var is_moving: bool = false
 
-# Dynamic pathfinding variables
 var path_validation_timer: float = 0.0
 var consecutive_failed_recalcs: int = 0
 var max_failed_recalcs: int = 3
@@ -37,17 +35,15 @@ func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)
 
-
-# SIMPLIFIED: Combined dynamic pathfinding logic
 func _update_path_validation(delta):
-	if not is_moving or current_path.is_empty():
+	if not is_moving or current_path.is_empty() or not validator:
 		return
 	
 	path_validation_timer += delta
 	if path_validation_timer >= path_validation_rate:
 		path_validation_timer = 0.0
 		
-		if not _is_current_path_safe():
+		if not validator.is_path_safe(current_path, global_position, path_index, agent_radius, agent_buffer):
 			path_invalidated.emit()
 			_recalculate_or_find_alternative()
 
@@ -69,7 +65,7 @@ func _recalculate_or_find_alternative():
 		for angle in angles:
 			var offset = Vector2(cos(angle), sin(angle)) * (agent_radius * 3)
 			var test_pos = target_position + offset
-			if _is_point_in_bounds(test_pos) and not system._is_circle_position_unsafe(test_pos, agent_radius, agent_buffer):
+			if _is_point_in_bounds(test_pos) and not validator.is_circle_position_unsafe(test_pos, agent_radius, agent_buffer):
 				path = system.find_path_for_circle(global_position, test_pos, agent_radius)
 				if not path.is_empty():
 					target_position = test_pos
@@ -83,24 +79,6 @@ func _recalculate_or_find_alternative():
 	path_index = 0
 	consecutive_failed_recalcs = 0
 	path_recalculated.emit()
-
-# SIMPLIFIED: Basic path safety check
-func _is_current_path_safe() -> bool:
-	if not system or current_path.is_empty() or path_index >= current_path.size():
-		return false
-	
-	# Check current position and next waypoint
-	if system._is_circle_position_unsafe(global_position, agent_radius, agent_buffer):
-		return false
-	
-	if path_index < current_path.size():
-		var next_waypoint = current_path[path_index]
-		if system._is_circle_position_unsafe(next_waypoint, agent_radius, agent_buffer):
-			return false
-		if not system._is_safe_circle_path(global_position, next_waypoint, agent_radius, agent_buffer):
-			return false
-	
-	return true
 
 func _pause_and_retry():
 	is_moving = false
@@ -136,13 +114,14 @@ func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
 
 func find_path_to(destination: Vector2) -> bool:
 	if not system:
+		push_error("pathfinding system should be set for pathfinder")
 		return false
 	
 	# If destination is unsafe, find closest safe point
 	var safe_destination = destination
-	if system._is_circle_position_unsafe(destination, agent_radius, agent_buffer):
+	if validator.is_circle_position_unsafe(destination, agent_radius, agent_buffer):
 		print("Destination is inside obstacle, finding closest safe point...")
-		safe_destination = system._find_closest_safe_point(destination, agent_radius, agent_buffer)
+		safe_destination = validator.find_closest_safe_point(destination, agent_radius, agent_buffer)
 		
 		if safe_destination == Vector2.INF:
 			print("Could not find any safe point near destination")
@@ -158,11 +137,10 @@ func find_path_to(destination: Vector2) -> bool:
 		return false
 	
 	current_path = path
-	target_position = safe_destination  # Use the safe destination
+	target_position = safe_destination
 	path_index = 0
 	is_moving = true
 	
-	# Reset state
 	path_validation_timer = 0.0
 	consecutive_failed_recalcs = 0
 	
@@ -193,7 +171,6 @@ func get_remaining_distance() -> float:
 		total += current_path[i].distance_to(current_path[i + 1])
 	return total
 
-
 func _on_destination_reached():
 	is_moving = false
 	current_path.clear()
@@ -205,7 +182,9 @@ func get_current_path() -> PackedVector2Array:
 	return current_path
 
 func is_path_valid() -> bool:
-	return _is_current_path_safe()
+	if not validator:
+		return false
+	return validator.is_path_safe(current_path, global_position, path_index, agent_radius, agent_buffer)
 
 func recalculate_path():
 	if is_moving:

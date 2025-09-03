@@ -60,11 +60,11 @@ func _draw_systems():
 				draw_line(start, end, system_bounds_color, 2.0)
 		
 		# Draw grid if enabled
-		if draw_grid and system.grid.size() > 0:
+		if draw_grid and system.grid_manager.grid.size() > 0:
 			var i = 0
-			for pos in system.grid.keys():
+			for pos in system.grid_manager.grid.keys():
 				if i % grid_sample_rate == 0:
-					var color = grid_clear_color if system.grid[pos] else grid_blocked_color
+					var color = grid_clear_color if system.grid_manager.grid[pos] else grid_blocked_color
 					draw_circle(pos, 2.0, color)
 				i += 1
 

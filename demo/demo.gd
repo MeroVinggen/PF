@@ -63,7 +63,7 @@ func _update_debug_ui():
 	var info = []
 	
 	if pathfinder_system:
-		info.append("Grid: " + str(pathfinder_system.grid.size()))
+		info.append("Grid: " + str(pathfinder_system.grid_manager.grid.size()))
 		info.append("Dynamic: " + str(pathfinder_system.get_dynamic_obstacle_count()))
 		info.append("Dirty: " + str(pathfinder_system.is_grid_dirty()))
 	

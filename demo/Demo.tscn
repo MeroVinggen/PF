@@ -32,7 +32,6 @@ metadata/_custom_type_script = "uid://dsw8ahtan3evv"
 [node name="Pathfinder" type="Node2D" parent="."]
 position = Vector2(129, 107)
 script = ExtResource("4_wlawv")
-agent_buffer = 5.0
 metadata/_custom_type_script = "uid://c0akywfx8v7xg"
 
 [node name="PathfindingDebugRenderer" type="Node2D" parent="." node_paths=PackedStringArray("systems_to_debug", "obstacles_to_debug", "pathfinders_to_debug")]

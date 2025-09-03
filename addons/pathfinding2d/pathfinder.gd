@@ -63,7 +63,7 @@ func _recalculate_or_find_alternative():
 		# Try nearby positions around target
 		var angles = [0, PI/4, PI/2, 3*PI/4, PI, 5*PI/4, 3*PI/2, 7*PI/4]
 		for angle in angles:
-			var offset = Vector2(cos(angle), sin(angle)) * (agent_radius * 3)
+			var offset = Vector2(cos(angle), sin(angle)) * (agent_radius * PathfindingConstants.ALTERNATIVE_POSITION_RADIUS_MULTIPLIER)
 			var test_pos = target_position + offset
 			if _is_point_in_bounds(test_pos) and not validator.is_circle_position_unsafe(test_pos, agent_radius, agent_buffer):
 				path = system.find_path_for_circle(global_position, test_pos, agent_radius)

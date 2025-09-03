@@ -38,6 +38,7 @@ const GRID_BUFFER_FACTOR: float = 2.0     # Buffer around dynamic obstacles
 # === PATHFINDER CONSTANTS ===
 const MAX_FAILED_RECALCULATIONS: int = 3
 const RETRY_DELAY_SECONDS: float = 2.0
+const ALTERNATIVE_POSITION_RADIUS_MULTIPLIER: int = 3
 
 # === OBSTACLE MANAGER CONSTANTS ===
 const VALIDITY_CACHE_INTERVAL: float = 0.5   # Check validity every N seconds
@@ -50,6 +51,11 @@ const BOUNDS_EXPANSION_CONSERVATIVE: float = 50.0  # Conservative bounds expansi
 const CLEARANCE_BASE_ADDITION: float = 15.0        # Base clearance addition
 const CLEARANCE_SAFETY_MARGIN: float = 10.0        # Additional safety margin
 const CLEARANCE_MULTIPLIERS: Array[float] = [1.0, 2.0, 3.0, 4.0]  # Progressive clearance attempts
+const FALLBACK_SEARCH_BUFFER: float = 25.0
+const ENHANCED_SEARCH_STEP_BUFFER: float = 10.0
+const DIRECTION_TEST_DISTANCE: float = 5.0
+const MIN_DIRECTION_LENGTH: float = 0.01
+const ENHANCED_SEARCH_ANGLE_STEP: float = PI / 6
 
 # === SEARCH DIRECTION CONSTANTS ===
 const CARDINAL_DIRECTIONS: Array[Vector2] = [

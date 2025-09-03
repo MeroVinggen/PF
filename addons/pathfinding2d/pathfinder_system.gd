@@ -150,7 +150,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 		var directions = [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]
 		
 		for direction in directions:
-			var test_distance = (radius + buffer + 25.0)  # Generous distance
+			var test_distance = (radius + buffer + PathfindingConstants.FALLBACK_SEARCH_BUFFER)  # Generous distance
 			var candidate = unsafe_pos + direction * test_distance
 			
 			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
@@ -173,15 +173,13 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 	
 	# Fallback: search in expanding circles with larger steps
 	print("Using enhanced fallback search method...")
-	var search_step = max(grid_size, radius + buffer + 10.0)  # Larger search steps
-	var max_search_radius = max(grid_size * 15, radius * 10)  # Expanded search area
+	var search_step = max(grid_size, radius + buffer + PathfindingConstants.ENHANCED_SEARCH_STEP_BUFFER)  # Larger search steps
+	var max_search_radius = max(grid_size * PathfindingConstants.CLEARANCE_BASE_ADDITION, radius * PathfindingConstants.CLEARANCE_SAFETY_MARGIN)  # Expanded search area
 	
 	# Try positions in expanding circles around target
 	for search_radius in range(int(search_step), int(max_search_radius), int(search_step)):
-		var angle_step = PI / 6  # 12 directions per circle (more directions)
-		
-		for angle in range(0, int(TAU / angle_step)):
-			var test_angle = angle * angle_step
+		for angle in range(0, int(TAU / PathfindingConstants.ENHANCED_SEARCH_ANGLE_STEP)):
+			var test_angle = angle * PathfindingConstants.ENHANCED_SEARCH_ANGLE_STEP
 			var offset = Vector2(cos(test_angle), sin(test_angle)) * search_radius
 			var test_pos = unsafe_pos + offset
 			
@@ -217,14 +215,14 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		
 		# Calculate outward direction from obstacle
 		var direction = (point - edge_point).normalized()
-		if direction.length() < 0.01:  # Handle case where point is exactly on edge
+		if direction.length() < PathfindingConstants.MIN_DIRECTION_LENGTH:  # Handle case where point is exactly on edge
 			# Use edge normal instead
 			var edge_vector = (edge_end - edge_start).normalized()
 			direction = Vector2(-edge_vector.y, edge_vector.x)  # Perpendicular (outward)
 			
 			# Determine which side is "outward" by testing
-			var test_point1 = edge_point + direction * 5.0
-			var test_point2 = edge_point - direction * 5.0
+			var test_point1 = edge_point + direction * PathfindingConstants.DIRECTION_TEST_DISTANCE
+			var test_point2 = edge_point - direction * PathfindingConstants.DIRECTION_TEST_DISTANCE
 			
 			if PathfindingUtils.is_point_in_polygon(test_point1, world_poly):
 				direction = -direction  # Flip if we picked the wrong direction

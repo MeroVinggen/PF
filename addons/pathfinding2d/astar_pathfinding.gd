@@ -10,10 +10,12 @@ var closed_set: Dictionary = {}
 var came_from: Dictionary = {}
 
 var pool: PathNodePool
+var array_pool: GenericArrayPool
 
-func _init(pathfinder_system: PathfinderSystem, node_pool: PathNodePool):
+func _init(pathfinder_system: PathfinderSystem, node_pool: PathNodePool, arr_pool: GenericArrayPool):
 	system = pathfinder_system
 	pool = node_pool
+	array_pool = arr_pool
 
 func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = PathfindingConstants.SAFETY_MARGIN) -> PackedVector2Array:
 	print("=== PATHFINDING REQUEST ===")
@@ -61,11 +63,10 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: f
 	return path
 
 func _cleanup_path_nodes():
-	"""Return all used PathNodes back to the pool"""
+	"""Return all used PathNodes and arrays back to pools"""
 	var all_nodes: Array[PathNode] = []
 	all_nodes.append_array(open_set)
 	
-	# Clear the arrays
 	open_set.clear()
 	closed_set.clear()
 	came_from.clear()
@@ -211,7 +212,7 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	return PackedVector2Array()
 
 func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Array[Vector2]:
-	var neighbors: Array[Vector2] = []
+	var neighbors: Array[Vector2] = array_pool.get_array()
 	
 	# Use smaller steps for larger agents to find more precise paths
 	var step_size = system.grid_size

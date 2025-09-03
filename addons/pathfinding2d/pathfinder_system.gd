@@ -20,6 +20,11 @@ class_name PathfinderSystem
 @export var pool_allow_expand: bool = true
 @export var pool_expand_step: int = 20
 
+@export_group("Array Pool Settings")
+@export var array_pool_size: int = 50
+@export var array_pool_allow_expand: bool = true
+@export var array_pool_expand_step: int = 10
+
 @onready var shared_validator: PathValidator = PathValidator.new(self)
 
 var grid_dirty: bool = false
@@ -31,15 +36,15 @@ var grid_manager: GridManager
 var obstacle_manager: ObstacleManager
 var astar_pathfinding: AStarPathfinding
 var path_node_pool: PathNodePool
+var vector2_array_pool: GenericArrayPool
 
 func _ready():
-	# Initialize pool first
 	path_node_pool = PathNodePool.new(pool_size, pool_allow_expand, pool_expand_step)
+	vector2_array_pool = GenericArrayPool.new("Vector2Array", array_pool_size, array_pool_allow_expand, array_pool_expand_step)
 	
-	# Initialize managers
 	grid_manager = GridManager.new(self)
 	obstacle_manager = ObstacleManager.new(self)
-	astar_pathfinding = AStarPathfinding.new(self, path_node_pool)
+	astar_pathfinding = AStarPathfinding.new(self, path_node_pool, vector2_array_pool)
 	
 	if not Engine.is_editor_hint():
 		_initialize_system()

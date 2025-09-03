@@ -17,6 +17,9 @@ obstacles = [NodePath("../PathfinderObstacleD"), NodePath("../PathfinderObstacle
 pool_size = null
 pool_allow_expand = null
 pool_expand_step = null
+array_pool_size = null
+array_pool_allow_expand = null
+array_pool_expand_step = null
 metadata/_custom_type_script = "uid://iy0w45a50gju"
 
 [node name="PathfinderObstacleS" type="Node2D" parent="."]

@@ -90,25 +90,7 @@ func get_world_polygon() -> PackedVector2Array:
 
 func is_point_inside(point: Vector2) -> bool:
 	var local_point = global_transform.affine_inverse() * point
-	return _is_point_in_polygon(local_point, obstacle_polygon)
-
-func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
-	if polygon.size() < 3:
-		return false
-	
-	var inside = false
-	var j = polygon.size() - 1
-	
-	for i in polygon.size():
-		var pi = polygon[i]
-		var pj = polygon[j]
-		
-		if ((pi.y > point.y) != (pj.y > point.y)) and \
-		   (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x):
-			inside = !inside
-		j = i
-	
-	return inside
+	return PathfindingUtils.is_point_in_polygon(local_point, obstacle_polygon)
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

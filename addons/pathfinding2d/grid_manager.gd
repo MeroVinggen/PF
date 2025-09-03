@@ -21,7 +21,7 @@ func build_grid():
 			var y = bounds.position.y + (j * system.grid_size)
 			var pos = Vector2(x, y)
 			
-			if _is_point_in_polygon(pos, system.bounds_polygon):
+			if PathfindingUtils.is_point_in_polygon(pos, system.bounds_polygon):
 				grid[pos] = _is_grid_point_clear(pos)
 
 func update_grid_for_dynamic_obstacles():
@@ -86,24 +86,6 @@ func _get_bounds_rect() -> Rect2:
 		max_y = max(max_y, point.y)
 	
 	return Rect2(min_x, min_y, max_x - min_x, max_y - min_y)
-
-func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
-	if polygon.size() < 3:
-		return true
-	
-	var inside = false
-	var j = polygon.size() - 1
-	
-	for i in polygon.size():
-		var pi = polygon[i]
-		var pj = polygon[j]
-		
-		if ((pi.y > point.y) != (pj.y > point.y)) and \
-		   (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x):
-			inside = !inside
-		j = i
-	
-	return inside
 
 func _is_grid_point_clear(pos: Vector2) -> bool:
 	for obstacle in system.obstacles:

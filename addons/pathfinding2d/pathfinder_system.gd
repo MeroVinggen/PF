@@ -146,14 +146,14 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 		
 		# Also try finding safe points in cardinal directions from obstacle edges
 		var world_poly = obstacle.get_world_polygon()
-		var poly_center = _get_polygon_center(world_poly)
+		var poly_center = PathfindingUtils.get_polygon_center(world_poly)
 		var directions = [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]
 		
 		for direction in directions:
 			var test_distance = (radius + buffer + 25.0)  # Generous distance
 			var candidate = unsafe_pos + direction * test_distance
 			
-			if _is_point_in_polygon(candidate, bounds_polygon) and \
+			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
 			   not _is_circle_position_unsafe(candidate, radius, buffer):
 				candidates.append(candidate)
 	
@@ -186,7 +186,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 			var test_pos = unsafe_pos + offset
 			
 			# Must be within bounds and not unsafe
-			if _is_point_in_polygon(test_pos, bounds_polygon) and \
+			if PathfindingUtils.is_point_in_polygon(test_pos, bounds_polygon) and \
 			   not _is_circle_position_unsafe(test_pos, radius, buffer):
 				print("Fallback found safe point at: ", test_pos)
 				return test_pos
@@ -213,7 +213,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		var edge_end = world_poly[(i + 1) % world_poly.size()]
 		
 		# Find closest point on this edge
-		var edge_point = _closest_point_on_line_segment(point, edge_start, edge_end)
+		var edge_point = PathfindingUtils.closest_point_on_line_segment(point, edge_start, edge_end)
 		
 		# Calculate outward direction from obstacle
 		var direction = (point - edge_point).normalized()
@@ -226,7 +226,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 			var test_point1 = edge_point + direction * 5.0
 			var test_point2 = edge_point - direction * 5.0
 			
-			if _is_point_in_polygon(test_point1, world_poly):
+			if PathfindingUtils.is_point_in_polygon(test_point1, world_poly):
 				direction = -direction  # Flip if we picked the wrong direction
 		
 		# Try multiple clearance distances for robustness
@@ -240,7 +240,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 			var safe_candidate = edge_point + direction * clearance_distance
 			
 			# Verify this candidate is good
-			if _is_point_in_polygon(safe_candidate, bounds_polygon) and \
+			if PathfindingUtils.is_point_in_polygon(safe_candidate, bounds_polygon) and \
 			   not _is_circle_position_unsafe(safe_candidate, radius, buffer):
 				var distance = point.distance_to(safe_candidate)
 				if distance < closest_distance:
@@ -251,7 +251,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 	# If no edge-based solution worked, try radial approach with multiple distances
 	if closest_point == Vector2.INF:
 		print("Edge-based approach failed, trying radial approach...")
-		var poly_center = _get_polygon_center(world_poly)
+		var poly_center = PathfindingUtils.get_polygon_center(world_poly)
 		var direction = (point - poly_center).normalized()
 		
 		# Try progressively larger distances
@@ -264,7 +264,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		
 		for dist in test_distances:
 			var candidate = point + direction * dist
-			if _is_point_in_polygon(candidate, bounds_polygon) and \
+			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
 			   not _is_circle_position_unsafe(candidate, radius, buffer):
 				print("Radial approach found safe point at distance: ", dist)
 				return candidate
@@ -280,53 +280,12 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		for dir in directions:
 			for dist in test_distances:
 				var candidate = point + dir * dist
-				if _is_point_in_polygon(candidate, bounds_polygon) and \
+				if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
 				   not _is_circle_position_unsafe(candidate, radius, buffer):
 					print("Cardinal direction found safe point: ", candidate)
 					return candidate
 	
 	return closest_point
-
-func _get_polygon_center(polygon: PackedVector2Array) -> Vector2:
-	"""Calculate the center point of a polygon"""
-	if polygon.is_empty():
-		return Vector2.ZERO
-	
-	var sum = Vector2.ZERO
-	for point in polygon:
-		sum += point
-	
-	return sum / polygon.size()
-
-func _closest_point_on_line_segment(point: Vector2, line_start: Vector2, line_end: Vector2) -> Vector2:
-	"""Find the closest point on a line segment to a given point"""
-	var line_vec = line_end - line_start
-	var point_vec = point - line_start
-	
-	var line_len_sq = line_vec.length_squared()
-	if line_len_sq < 0.001:
-		return line_start
-	
-	var t = clamp(point_vec.dot(line_vec) / line_len_sq, 0.0, 1.0)
-	return line_start + t * line_vec
-
-func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
-	if polygon.size() < 3:
-		return true
-	
-	var inside = false
-	var j = polygon.size() - 1
-	
-	for i in polygon.size():
-		var pi = polygon[i]
-		var pj = polygon[j]
-		
-		if ((pi.y > point.y) != (pj.y > point.y)) and \
-		   (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x):
-			inside = !inside
-		j = i
-	
-	return inside
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = []

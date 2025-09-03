@@ -85,7 +85,7 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 	var total_radius = radius + buffer
 	
 	# Must be within bounds
-	if not _is_point_in_polygon(pos, system.bounds_polygon):
+	if not PathfindingUtils.is_point_in_polygon(pos, system.bounds_polygon):
 		return true
 	
 	# Check distance to all obstacles
@@ -130,7 +130,7 @@ func _find_safe_circle_position(pos: Vector2, radius: float, buffer: float) -> V
 			var test_pos = pos + offset
 			
 			# Must be within bounds and not unsafe
-			if _is_point_in_polygon(test_pos, system.bounds_polygon) and not _is_circle_position_unsafe(test_pos, radius, buffer):
+			if PathfindingUtils.is_point_in_polygon(test_pos, system.bounds_polygon) and not _is_circle_position_unsafe(test_pos, radius, buffer):
 				return test_pos
 	
 	# Final fallback: try grid points in expanded area
@@ -234,7 +234,7 @@ func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Arra
 		var neighbor = pos + direction
 		
 		# Check if within bounds
-		if _is_point_in_polygon(neighbor, system.bounds_polygon):
+		if PathfindingUtils.is_point_in_polygon(neighbor, system.bounds_polygon):
 			neighbors.append(neighbor)
 	
 	return neighbors
@@ -276,29 +276,11 @@ func _reconstruct_path(came_from_dict: Dictionary, current: Vector2, start: Vect
 	path.reverse()
 	return path
 
-func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
-	if polygon.size() < 3:
-		return true
-	
-	var inside = false
-	var j = polygon.size() - 1
-	
-	for i in polygon.size():
-		var pi = polygon[i]
-		var pj = polygon[j]
-		
-		if ((pi.y > point.y) != (pj.y > point.y)) and \
-		   (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x):
-			inside = !inside
-		j = i
-	
-	return inside
-
 func _distance_point_to_polygon(point: Vector2, polygon: PackedVector2Array) -> float:
 	if polygon.is_empty():
 		return INF
 	
-	if _is_point_in_polygon(point, polygon):
+	if PathfindingUtils.is_point_in_polygon(point, polygon):
 		return 0.0
 	
 	var min_distance = INF

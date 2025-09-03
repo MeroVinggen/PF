@@ -52,7 +52,7 @@ func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array
 	"""Get pathfinders whose paths might be affected by this obstacle"""
 	var affected: Array[Pathfinder] = []
 	var world_poly = obstacle.get_world_polygon()
-	var obstacle_bounds = _get_polygon_bounds(world_poly)
+	var obstacle_bounds = PathfindingUtils.get_polygon_bounds(world_poly)
 	
 	# Expand bounds to account for agent sizes
 	obstacle_bounds = obstacle_bounds.grow(50.0)  # Conservative expansion
@@ -218,19 +218,3 @@ func _on_obstacle_changed():
 			pathfinder.call_deferred("_recalculate_or_find_alternative")
 	
 	print("=== END OBSTACLE CHANGED ===")
-
-func _get_polygon_bounds(polygon: PackedVector2Array) -> Rect2:
-	"""Get bounding rectangle of a polygon"""
-	if polygon.is_empty():
-		return Rect2()
-	
-	var min_pos = polygon[0]
-	var max_pos = polygon[0]
-	
-	for point in polygon:
-		min_pos.x = min(min_pos.x, point.x)
-		min_pos.y = min(min_pos.y, point.y)
-		max_pos.x = max(max_pos.x, point.x)
-		max_pos.y = max(max_pos.y, point.y)
-	
-	return Rect2(min_pos, max_pos - min_pos)

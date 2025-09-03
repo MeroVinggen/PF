@@ -92,25 +92,7 @@ func _pause_and_retry():
 	)
 
 func _is_point_in_bounds(point: Vector2) -> bool:
-	return _is_point_in_polygon(point, system.bounds_polygon)
-
-func _is_point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> bool:
-	if polygon.size() < 3:
-		return true
-
-	var inside = false
-	var j = polygon.size() - 1
-
-	for i in polygon.size():
-		var pi = polygon[i]
-		var pj = polygon[j]
-
-		if ((pi.y > point.y) != (pj.y > point.y)) and \
-			(point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x):
-			inside = !inside
-		j = i
-
-	return inside
+	return PathfindingUtils.is_point_in_polygon(point, system.bounds_polygon)
 
 func find_path_to(destination: Vector2) -> bool:
 	if not system:

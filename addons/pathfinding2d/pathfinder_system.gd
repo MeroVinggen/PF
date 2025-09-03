@@ -40,7 +40,7 @@ var vector2_array_pool: GenericArrayPool
 
 func _ready():
 	path_node_pool = PathNodePool.new(pool_size, pool_allow_expand, pool_expand_step)
-	vector2_array_pool = GenericArrayPool.new("Vector2Array", array_pool_size, array_pool_allow_expand, array_pool_expand_step)
+	vector2_array_pool = GenericArrayPool.new(array_pool_size, array_pool_allow_expand, array_pool_expand_step)
 	
 	grid_manager = GridManager.new(self)
 	obstacle_manager = ObstacleManager.new(self)

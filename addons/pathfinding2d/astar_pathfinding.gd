@@ -212,7 +212,7 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	return PackedVector2Array()
 
 func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Array[Vector2]:
-	var neighbors: Array[Vector2] = array_pool.get_array()
+	var neighbors: Array[Vector2] = array_pool.get_vector2_array()
 	
 	# Use smaller steps for larger agents to find more precise paths
 	var step_size = system.grid_size

@@ -93,12 +93,4 @@ func is_point_inside(point: Vector2) -> bool:
 	return PathfindingUtils.is_point_in_polygon(local_point, obstacle_polygon)
 
 func _get_configuration_warnings() -> PackedStringArray:
-	var warnings: PackedStringArray = []
-	
-	if obstacle_polygon.size() < 3:
-		warnings.append("Obstacle polygon needs at least 3 points to form a valid obstacle")
-	
-	if not is_static:
-		warnings.append("Dynamic obstacles will impact performance - use sparingly")
-	
-	return warnings
+	return PathfindingValidator.validate_pathfinder_obstacle(self)

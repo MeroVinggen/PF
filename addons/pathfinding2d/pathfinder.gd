@@ -173,9 +173,4 @@ func recalculate_path():
 		_recalculate_or_find_alternative()
 
 func _get_configuration_warnings() -> PackedStringArray:
-	var warnings: PackedStringArray = []
-	
-	if agent_buffer < 0:
-		warnings.append("Agent buffer cannot be negative")
-	
-	return warnings
+	return PathfindingValidator.validate_pathfinder(self)

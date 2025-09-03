@@ -288,12 +288,4 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 	return closest_point
 
 func _get_configuration_warnings() -> PackedStringArray:
-	var warnings: PackedStringArray = []
-	
-	if bounds_polygon.size() < 3:
-		warnings.append("Bounds polygon needs at least 3 points")
-	
-	if grid_size <= 0:
-		warnings.append("Grid size must be greater than 0")
-	
-	return warnings
+	return PathfindingValidator.validate_pathfinder_system(self)

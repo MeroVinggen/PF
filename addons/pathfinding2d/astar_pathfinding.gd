@@ -9,20 +9,11 @@ var open_set: Array[PathNode] = []
 var closed_set: Dictionary = {}
 var came_from: Dictionary = {}
 
-class PathNode:
-	var position: Vector2
-	var g_score: float
-	var f_score: float
-	var h_score: float
-	
-	func _init(pos: Vector2, g: float = 0.0, h: float = 0.0):
-		position = pos
-		g_score = g
-		h_score = h
-		f_score = g + h
+var pool: PathNodePool
 
-func _init(pathfinder_system: PathfinderSystem):
+func _init(pathfinder_system: PathfinderSystem, node_pool: PathNodePool):
 	system = pathfinder_system
+	pool = node_pool
 
 func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = PathfindingConstants.SAFETY_MARGIN) -> PackedVector2Array:
 	print("=== PATHFINDING REQUEST ===")
@@ -64,8 +55,23 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: f
 		path = _smooth_circle_path(path, radius, buffer)
 		print("Smoothed to: ", path.size(), " waypoints")
 	
+	_cleanup_path_nodes()
+
 	print("=== END PATHFINDING REQUEST ===")
 	return path
+
+func _cleanup_path_nodes():
+	"""Return all used PathNodes back to the pool"""
+	var all_nodes: Array[PathNode] = []
+	all_nodes.append_array(open_set)
+	
+	# Clear the arrays
+	open_set.clear()
+	closed_set.clear()
+	came_from.clear()
+	
+	# Return nodes to pool
+	pool.return_nodes(all_nodes)
 
 func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: float) -> bool:
 	var distance = start.distance_to(end)
@@ -144,7 +150,7 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	closed_set.clear()
 	came_from.clear()
 	
-	var start_node = PathNode.new(start, 0.0, _heuristic(start, goal))
+	var start_node = pool.get_node(start, 0.0, _heuristic(start, goal))
 	open_set.append(start_node)
 	
 	var iterations = 0
@@ -194,7 +200,7 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 					break
 			
 			if existing_node == null:
-				var new_node = PathNode.new(neighbor_pos, tentative_g, _heuristic(neighbor_pos, goal))
+				var new_node = pool.get_node(neighbor_pos, tentative_g, _heuristic(neighbor_pos, goal))
 				open_set.append(new_node)
 				came_from[neighbor_pos] = current.position
 			elif tentative_g < existing_node.g_score:

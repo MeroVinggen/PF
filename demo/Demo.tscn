@@ -14,6 +14,9 @@ script = ExtResource("2_umghc")
 bounds_polygon = PackedVector2Array(0, 0, 700, 0, 700, 700, 0, 700)
 pathfinders = [NodePath("../Pathfinder")]
 obstacles = [NodePath("../PathfinderObstacleD"), NodePath("../PathfinderObstacleS")]
+pool_size = null
+pool_allow_expand = null
+pool_expand_step = null
 metadata/_custom_type_script = "uid://iy0w45a50gju"
 
 [node name="PathfinderObstacleS" type="Node2D" parent="."]

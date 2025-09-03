@@ -222,7 +222,7 @@ func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Arra
 	
 	# For larger agents, also try half-steps to find tighter passages
 	if radius > system.grid_size * PathfindingConstants.HALF_STEP_THRESHOLD:
-		var half_step = step_size * PathfindingConstants.MIN_STEP_SIZE_FACTOR
+		var half_step: float = step_size * PathfindingConstants.MIN_STEP_SIZE_FACTOR
 		directions.append_array([
 			Vector2(half_step, 0), Vector2(-half_step, 0),
 			Vector2(0, half_step), Vector2(0, -half_step)

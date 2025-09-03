@@ -150,8 +150,8 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 		var directions = [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]
 		
 		for direction in directions:
-			var test_distance = (radius + buffer + PathfindingConstants.FALLBACK_SEARCH_BUFFER)  # Generous distance
-			var candidate = unsafe_pos + direction * test_distance
+			var test_distance: float = (radius + buffer + PathfindingConstants.FALLBACK_SEARCH_BUFFER)  # Generous distance
+			var candidate: Vector2 = unsafe_pos + direction * test_distance
 			
 			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
 			   not _is_circle_position_unsafe(candidate, radius, buffer):
@@ -173,11 +173,11 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 	
 	# Fallback: search in expanding circles with larger steps
 	print("Using enhanced fallback search method...")
-	var search_step = max(grid_size, radius + buffer + PathfindingConstants.ENHANCED_SEARCH_STEP_BUFFER)  # Larger search steps
-	var max_search_radius = max(grid_size * PathfindingConstants.CLEARANCE_BASE_ADDITION, radius * PathfindingConstants.CLEARANCE_SAFETY_MARGIN)  # Expanded search area
+	var search_step: int = int(max(grid_size, radius + buffer + PathfindingConstants.ENHANCED_SEARCH_STEP_BUFFER))  # Larger search steps
+	var max_search_radius: int = int(max(grid_size * PathfindingConstants.CLEARANCE_BASE_ADDITION, radius * PathfindingConstants.CLEARANCE_SAFETY_MARGIN))  # Expanded search area
 	
 	# Try positions in expanding circles around target
-	for search_radius in range(int(search_step), int(max_search_radius), int(search_step)):
+	for search_radius in range(search_step, max_search_radius, search_step):
 		for angle in range(0, int(TAU / PathfindingConstants.ENHANCED_SEARCH_ANGLE_STEP)):
 			var test_angle = angle * PathfindingConstants.ENHANCED_SEARCH_ANGLE_STEP
 			var offset = Vector2(cos(test_angle), sin(test_angle)) * search_radius
@@ -202,8 +202,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 	var closest_distance = INF
 	
 	# Increase clearance distance significantly for better pathfinding success
-	var base_clearance = radius + buffer + PathfindingConstants.CLEARANCE_BASE_ADDITION  # Increased base clearance
-	var safety_margin = PathfindingConstants.CLEARANCE_SAFETY_MARGIN  # Additional safety margin
+	var base_clearance: float = radius + buffer + PathfindingConstants.CLEARANCE_BASE_ADDITION  # Increased base clearance
 	
 	# Check each edge of the polygon
 	for i in world_poly.size():
@@ -230,7 +229,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		# Try multiple clearance distances for robustness
 		var clearance_distances = []
 		for multiplier in PathfindingConstants.CLEARANCE_MULTIPLIERS:
-			clearance_distances.append(base_clearance + safety_margin * multiplier)
+			clearance_distances.append(base_clearance + PathfindingConstants.CLEARANCE_SAFETY_MARGIN * multiplier)
 		
 		for clearance_distance in clearance_distances:
 			var safe_candidate = edge_point + direction * clearance_distance
@@ -253,7 +252,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		# Try progressively larger distances
 		var test_distances = []
 		for multiplier in PathfindingConstants.CLEARANCE_MULTIPLIERS:
-			test_distances.append(base_clearance + safety_margin * multiplier)
+			test_distances.append(base_clearance + PathfindingConstants.CLEARANCE_SAFETY_MARGIN * multiplier)
 		
 		for dist in test_distances:
 			var candidate = point + direction * dist

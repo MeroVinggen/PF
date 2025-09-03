@@ -33,9 +33,8 @@ func _has_changed() -> bool:
 	var poly_changed = obstacle_polygon.size() != last_polygon.size()
 	
 	if not poly_changed:
-		var threshold = 0.05  # More sensitive polygon change detection
 		for i in obstacle_polygon.size():
-			if obstacle_polygon[i].distance_to(last_polygon[i]) > threshold:
+			if obstacle_polygon[i].distance_to(last_polygon[i]) > PathfindingConstants.POLYGON_CHANGE_THRESHOLD:
 				poly_changed = true
 				break
 	
@@ -46,8 +45,8 @@ func _has_changed() -> bool:
 	return pos_changed or poly_changed or transform_changed
 
 func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
-	var pos_threshold = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD if not is_static else PathfindingConstants.STATIC_POSITION_THRESHOLD  # Tighter for dynamic
-	var rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD if not is_static else PathfindingConstants.STATIC_ROTATION_THRESHOLD
+	var pos_threshold: float = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD if not is_static else PathfindingConstants.STATIC_POSITION_THRESHOLD  # Tighter for dynamic
+	var rot_threshold: float = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD if not is_static else PathfindingConstants.STATIC_ROTATION_THRESHOLD
 
 	return (a.origin.distance_to(b.origin) < pos_threshold and 
 			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and

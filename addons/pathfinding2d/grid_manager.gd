@@ -10,7 +10,7 @@ func _init(pathfinder_system: PathfinderSystem):
 
 func build_grid():
 	grid.clear()
-	var bounds = _get_bounds_rect()
+	var bounds = PathfindingUtils.get_polygon_bounds(system.bounds_polygon)
 	
 	var steps_x = int(bounds.size.x / system.grid_size) + 1
 	var steps_y = int(bounds.size.y / system.grid_size) + 1
@@ -48,7 +48,7 @@ func update_grid_for_dynamic_obstacles():
 func update_grid_around_obstacle(obstacle: PathfinderObstacle):
 	"""Update grid points around a specific obstacle only"""
 	var world_poly = obstacle.get_world_polygon()
-	var obstacle_bounds = _get_polygon_bounds(world_poly)
+	var obstacle_bounds = PathfindingUtils.get_polygon_bounds(world_poly)
 	
 	# Expand bounds for agent clearance
 	obstacle_bounds = obstacle_bounds.grow(system.grid_size * PathfindingConstants.GRID_EXPANSION_FACTOR)
@@ -69,23 +69,6 @@ func snap_to_grid(pos: Vector2) -> Vector2:
 		round(pos.x / system.grid_size) * system.grid_size,
 		round(pos.y / system.grid_size) * system.grid_size
 	)
-
-func _get_bounds_rect() -> Rect2:
-	if system.bounds_polygon.is_empty():
-		return Rect2(-500, -500, 1000, 1000)
-	
-	var min_x = system.bounds_polygon[0].x
-	var max_x = system.bounds_polygon[0].x
-	var min_y = system.bounds_polygon[0].y
-	var max_y = system.bounds_polygon[0].y
-	
-	for point in system.bounds_polygon:
-		min_x = min(min_x, point.x)
-		max_x = max(max_x, point.x)
-		min_y = min(min_y, point.y)
-		max_y = max(max_y, point.y)
-	
-	return Rect2(min_x, min_y, max_x - min_x, max_y - min_y)
 
 func _is_grid_point_clear(pos: Vector2) -> bool:
 	for obstacle in system.obstacles:
@@ -109,19 +92,3 @@ func _get_dynamic_obstacles_bounds_cached(valid_dynamic: Array[PathfinderObstacl
 	
 	var buffer = system.grid_size * PathfindingConstants.GRID_BUFFER_FACTOR
 	return Rect2(min_pos - Vector2(buffer, buffer), (max_pos - min_pos) + Vector2(buffer * 2, buffer * 2))
-
-func _get_polygon_bounds(polygon: PackedVector2Array) -> Rect2:
-	"""Get bounding rectangle of a polygon"""
-	if polygon.is_empty():
-		return Rect2()
-	
-	var min_pos = polygon[0]
-	var max_pos = polygon[0]
-	
-	for point in polygon:
-		min_pos.x = min(min_pos.x, point.x)
-		min_pos.y = min(min_pos.y, point.y)
-		max_pos.x = max(max_pos.x, point.x)
-		max_pos.y = max(max_pos.y, point.y)
-	
-	return Rect2(min_pos, max_pos - min_pos)

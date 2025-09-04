@@ -42,7 +42,7 @@ func unregister_obstacle(obstacle: PathfinderObstacle):
 
 func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array[Pathfinder]:
 	"""Get pathfinders whose paths might be affected by this obstacle"""
-	var affected: Array[Pathfinder] = []
+	var affected: Array[Pathfinder] = system.vector2_array_pool.get_pathfinder_array()
 	var world_poly = obstacle.get_world_polygon()
 	var obstacle_bounds = PathfindingUtils.get_polygon_bounds(world_poly)
 	

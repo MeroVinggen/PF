@@ -151,7 +151,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 	print("Point is inside ", containing_obstacles.size(), " obstacle(s)")
 	
 	# For each containing obstacle, find multiple candidate points
-	var candidates: Array[Vector2] = []
+	var candidates: Array[Vector2] = vector2_array_pool.get_vector2_array()
 	
 	for obstacle in containing_obstacles:
 		var safe_pos = _find_closest_point_outside_obstacle(unsafe_pos, obstacle, radius, buffer)
@@ -183,6 +183,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 				best_candidate = candidate
 		
 		print("Selected best candidate at distance: ", best_distance)
+		vector2_array_pool.return_vector2_array(candidates)
 		return best_candidate
 	
 	# Fallback: search in expanding circles with larger steps
@@ -204,6 +205,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 				return test_pos
 	
 	print("Could not find any safe point!")
+	vector2_array_pool.return_vector2_array(candidates)
 	return Vector2.INF
 
 func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderObstacle, radius: float, buffer: float) -> Vector2:

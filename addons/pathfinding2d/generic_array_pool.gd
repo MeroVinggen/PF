@@ -7,7 +7,6 @@ var pool_allow_expand: bool
 var pool_expand_step: int
 
 var vector2_pool: Array = []
-var int_pool: Array = []
 var pathfinder_pool: Array = []
 
 
@@ -18,7 +17,6 @@ func _init(initial_size: int, allow_expand: bool = true, expand_step: int = 10):
 	
 	# Pre-populate all pools
 	_expand_pool(vector2_pool, pool_size)
-	_expand_pool(int_pool, pool_size)
 	_expand_pool(pathfinder_pool, pool_size)
 
 func get_vector2_array() -> Array[Vector2]:
@@ -32,21 +30,6 @@ func get_vector2_array() -> Array[Vector2]:
 			array = []
 	else:
 		array = vector2_pool.pop_back() as Array[Vector2]
-	
-	array.clear()
-	return array
-
-func get_int_array() -> Array[int]:
-	var array: Array[int]
-	
-	if int_pool.is_empty():
-		if pool_allow_expand:
-			_expand_pool(int_pool, pool_expand_step)
-			array = int_pool.pop_back() as Array[int]
-		else:
-			array = []
-	else:
-		array = int_pool.pop_back() as Array[int]
 	
 	array.clear()
 	return array
@@ -67,9 +50,6 @@ func get_pathfinder_array() -> Array[Pathfinder]:
 func return_vector2_array(array: Array[Vector2]) -> void:
 	_return_array(array, vector2_pool)
 
-func return_int_array(array: Array[int]) -> void:
-	_return_array(array, int_pool)
-
 func return_pathfinder_array(array: Array[Pathfinder]) -> void:
 	_return_array(array, pathfinder_pool)
 
@@ -84,9 +64,6 @@ func _expand_pool(pool: Array, count: int) -> void:
 	for i in count:
 		if pool == vector2_pool:
 			var typed_array: Array[Vector2] = []
-			pool.append(typed_array)
-		elif pool == int_pool:
-			var typed_array: Array[int] = []
 			pool.append(typed_array)
 		elif pool == pathfinder_pool:
 			var typed_array: Array[Pathfinder] = []

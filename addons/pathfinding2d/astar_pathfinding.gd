@@ -11,7 +11,6 @@ var came_from: Dictionary = {}
 
 var pool: PathNodePool
 var array_pool: GenericArrayPool
-var neighbors_array_ref: Array[Vector2] = []
 
 func _init(pathfinder_system: PathfinderSystem, node_pool: PathNodePool, arr_pool: GenericArrayPool):
 	system = pathfinder_system
@@ -67,11 +66,6 @@ func _cleanup_path_nodes():
 	"""Return all used PathNodes and arrays back to pools"""
 	var all_nodes: Array[PathNode] = []
 	all_nodes.append_array(open_set)
-	
-	# Return the neighbors array to pool if we created one
-	if not neighbors_array_ref.is_empty():
-		array_pool.return_vector2_array(neighbors_array_ref)
-		neighbors_array_ref.clear()
 	
 	open_set.clear()
 	closed_set.clear()
@@ -214,12 +208,14 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 				existing_node.g_score = tentative_g
 				existing_node.f_score = tentative_g + existing_node.h_score
 				came_from[neighbor_pos] = current.position
-	
+			
+		array_pool.return_vector2_array(neighbors)
+		
 	return PackedVector2Array()
 
 func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Array[Vector2]:
+	# cleanup will happen in caller func
 	var neighbors: Array[Vector2] = array_pool.get_vector2_array()
-	neighbors_array_ref = neighbors  # Keep reference for cleanup
 	
 	# Use smaller steps for larger agents to find more precise paths
 	var step_size = system.grid_size

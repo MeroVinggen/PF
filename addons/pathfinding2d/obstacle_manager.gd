@@ -81,6 +81,7 @@ func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array
 		if path_intersects:
 			affected.append(pathfinder)
 	
+	system.vector2_array_pool.return_pathfinder_array(affected)
 	return affected
 
 func _get_valid_dynamic_obstacles() -> Array[PathfinderObstacle]:

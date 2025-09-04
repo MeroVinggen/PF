@@ -60,17 +60,6 @@ func return_nodes(nodes: Array[PathNode]) -> void:
 	for node in nodes:
 		return_node(node)
 
-func get_pool_stats() -> Dictionary:
-	return {
-		"pool_size": pool_size,
-		"available": available_nodes.size(),
-		"in_use": pool_size - available_nodes.size(),
-		"total_created": total_created,
-		"total_expansions": total_expansions,
-		"allow_expand": pool_allow_expand,
-		"expand_step": pool_expand_step
-	}
-
 func _expand_pool(count: int) -> void:
 	for i in count:
 		var node = PathNode.new()

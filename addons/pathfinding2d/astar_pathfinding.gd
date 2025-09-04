@@ -76,13 +76,15 @@ func _cleanup_path_nodes():
 
 func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: float) -> bool:
 	var distance = start.distance_to(end)
-	var samples = max(int(distance / (system.grid_size * PathfindingConstants.SAMPLE_DISTANCE_FACTOR)), PathfindingConstants.MIN_PATH_SAMPLES)
+	var samples = max(int(distance / (system.grid_size * 0.8)), 6)
 	
 	for i in samples + 1:
 		var t = float(i) / float(samples)
 		var test_pos = start.lerp(end, t)
 		
 		if _is_circle_position_unsafe(test_pos, radius, buffer):
+			if start.distance_to(Vector2(310, 307)) < 50 or end.distance_to(Vector2(310, 307)) < 50:
+				print("DEBUG: Path blocked at sample ", i, " pos:", test_pos, " between ", start, " -> ", end)
 			return false
 	
 	return true
@@ -105,28 +107,41 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 			
 		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
 		
+		if pos.x > 300 and pos.x < 340 and pos.y > 310 and pos.y < 330:
+			print("DEBUG: Position ", pos, " distance to obstacle at ", obstacle.global_position, ": ", distance_to_obstacle, " total_radius: ", total_radius)
+		
 		# Add small tolerance to prevent edge cases
 		var safety_margin = PathfindingConstants.SAFETY_MARGIN
-		if distance_to_obstacle < (total_radius - safety_margin):
+		if distance_to_obstacle < (total_radius - safety_margin * 0.5):
 			return true
 	
 	return false
 
 func _find_safe_circle_position(pos: Vector2, radius: float, buffer: float) -> Vector2:
+	print("DEBUG: Finding safe position for: ", pos)
+	
 	# First try the exact position
 	if not _is_circle_position_unsafe(pos, radius, buffer):
+		print("DEBUG: Exact position is safe")
 		return pos
 	
+	print("DEBUG: Exact position is unsafe, trying snapped")
 	# Try snapped grid position
 	var snapped = system.grid_manager.snap_to_grid(pos)
 	if not _is_circle_position_unsafe(snapped, radius, buffer):
+		print("DEBUG: Snapped position is safe: ", snapped)
 		return snapped
-
+	
+	print("DEBUG: Snapped position also unsafe, starting search...")
 	var search_step = min(system.grid_size * PathfindingConstants.SEARCH_STEP_FACTOR, radius * PathfindingConstants.SEARCH_STEP_FACTOR)
 	var max_search_radius = max(system.grid_size * PathfindingConstants.MAX_SEARCH_RADIUS_GRID_FACTOR, radius * PathfindingConstants.MAX_SEARCH_RADIUS_AGENT_FACTOR)
-
+	
+	print("DEBUG: Search params - step:", search_step, " max_radius:", max_search_radius)
+	
 	# Try positions in expanding circles around target
 	for search_radius in range(int(search_step), int(max_search_radius), int(search_step)):
+		print("DEBUG: Trying search radius: ", search_radius)
+		
 		var angle_step = PathfindingConstants.SEARCH_ANGLE_STEP
 		
 		for angle in range(0, int(TAU / angle_step)):
@@ -159,6 +174,8 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	
 	# Dynamic goal tolerance based on agent size
 	var goal_tolerance = max(system.grid_size * PathfindingConstants.GOAL_TOLERANCE_FACTOR, radius * PathfindingConstants.GOAL_TOLERANCE_MIN_FACTOR)
+	
+	print("DEBUG: A* starting - start:", start, " goal:", goal, " tolerance:", goal_tolerance)
 
 	while not open_set.is_empty() and iterations < max_iterations:
 		iterations += 1
@@ -172,24 +189,51 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 		var current = open_set[current_idx]
 		open_set.remove_at(current_idx)
 		
+		if iterations <= 10:
+			print("DEBUG: Early iteration ", iterations, " at position: ", current.position)
+		
 		# Check if we reached the goal (with tolerance)
 		if current.position.distance_to(goal) < goal_tolerance:
+			print("DEBUG: A* found path in ", iterations, " iterations")
 			return _reconstruct_path(came_from, current.position, start)
 		
 		closed_set[current.position] = true
 		
+		# Check if we reached the goal (with tolerance)
+		if current.position.distance_to(goal) < goal_tolerance:
+			print("DEBUG: A* found path in ", iterations, " iterations")
+			return _reconstruct_path(came_from, current.position, start)
+
+		# ADD THIS CODE HERE:
+		if iterations % 50 == 0:  # Every 50th iteration
+			print("DEBUG: Iteration ", iterations, " exploring: ", current.position, " f_score: ", current.f_score)
+
+		closed_set[current.position] = true
+		
 		# Get neighbors with dynamic step size
 		var neighbors = _get_adaptive_neighbors(current.position, radius, buffer)
+		
+		var valid_neighbors = 0
+		var unsafe_neighbors = 0
+		var path_blocked_neighbors = 0
 		
 		for neighbor_pos in neighbors:
 			if closed_set.has(neighbor_pos):
 				continue
 			
 			if _is_circle_position_unsafe(neighbor_pos, radius, buffer):
+				unsafe_neighbors += 1
+				if neighbor_pos.distance_to(Vector2(308, 302)) < 30:
+					print("DEBUG: Neighbor unsafe at ", neighbor_pos, " (near goal)")
 				continue
 			
 			if not _is_safe_circle_path(current.position, neighbor_pos, radius, buffer):
+				path_blocked_neighbors += 1
+				if neighbor_pos.distance_to(Vector2(308, 302)) < 30:
+					print("DEBUG: Path blocked from ", current.position, " to ", neighbor_pos, " (near goal)")
 				continue
+			
+			valid_neighbors += 1
 			
 			var movement_cost = current.position.distance_to(neighbor_pos)
 			var tentative_g = current.g_score + movement_cost
@@ -208,9 +252,18 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 				existing_node.g_score = tentative_g
 				existing_node.f_score = tentative_g + existing_node.h_score
 				came_from[neighbor_pos] = current.position
-			
+		
+		if valid_neighbors == 0:
+			print("DEBUG: No valid neighbors from ", current.position, " - unsafe:", unsafe_neighbors, " blocked:", path_blocked_neighbors, " total_neighbors:", neighbors.size())
+		
 		array_pool.return_vector2_array(neighbors)
 		
+	# Debug why A* failed
+	if open_set.is_empty():
+		print("DEBUG: A* failed - open set exhausted after ", iterations, " iterations")
+	else:
+		print("DEBUG: A* failed - max iterations reached (", iterations, ")")
+	
 	return PackedVector2Array()
 
 func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Array[Vector2]:

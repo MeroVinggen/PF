@@ -81,7 +81,6 @@ func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array
 		if path_intersects:
 			affected.append(pathfinder)
 	
-	system.vector2_array_pool.return_pathfinder_array(affected)
 	return affected
 
 func _get_valid_dynamic_obstacles() -> Array[PathfinderObstacle]:
@@ -178,5 +177,6 @@ func _on_obstacle_changed():
 			print("Invalidating path for pathfinder at: ", pathfinder.global_position)
 			pathfinder.consecutive_failed_recalcs = 0
 			pathfinder.call_deferred("_recalculate_or_find_alternative")
-	
+			
+	system.vector2_array_pool.return_pathfinder_array(affected_pathfinders)
 	print("=== END OBSTACLE CHANGED ===")

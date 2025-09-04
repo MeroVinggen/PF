@@ -202,6 +202,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 			if PathfindingUtils.is_point_in_polygon(test_pos, bounds_polygon) and \
 			   not _is_circle_position_unsafe(test_pos, radius, buffer):
 				print("Fallback found safe point at: ", test_pos)
+				vector2_array_pool.return_vector2_array(candidates)
 				return test_pos
 	
 	print("Could not find any safe point!")

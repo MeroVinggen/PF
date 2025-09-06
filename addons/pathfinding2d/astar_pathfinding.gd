@@ -26,10 +26,7 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: f
 	# Log all obstacle positions and states
 	for i in range(system.obstacles.size()):
 		var obs = system.obstacles[i]
-		if is_instance_valid(obs):
-			print("Obstacle ", i, ": pos=", obs.global_position, " static=", obs.is_static, " poly=", obs.get_world_polygon())
-		else:
-			print("Obstacle ", i, ": INVALID")
+		print("Obstacle ", i, ": pos=", obs.global_position, " static=", obs.is_static, " poly=", obs.get_world_polygon())
 	
 	if system.grid_dirty:
 		print("Updating grid for dynamic obstacles...")
@@ -104,9 +101,6 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 	
 	# Check distance to all obstacles
 	for obstacle in system.obstacles:
-		if not is_instance_valid(obstacle):
-			continue
-		
 		var world_poly = obstacle.get_world_polygon()
 		if world_poly.is_empty():
 			continue

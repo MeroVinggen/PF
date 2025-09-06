@@ -55,7 +55,7 @@ func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array
 	var obstacle_bounds = PathfindingUtils.get_polygon_bounds(world_poly)
 	
 	for pathfinder in system.pathfinders:
-		if not is_instance_valid(pathfinder) or not pathfinder.is_moving:
+		if not pathfinder.is_moving:
 			continue
 		
 		# Check if pathfinder's current path intersects obstacle area

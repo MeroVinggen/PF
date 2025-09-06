@@ -68,7 +68,7 @@ func snap_to_grid(pos: Vector2) -> Vector2:
 
 func _is_grid_point_clear(pos: Vector2) -> bool:
 	for obstacle in system.obstacles:
-		if is_instance_valid(obstacle) and obstacle.is_point_inside(pos):
+		if obstacle.is_point_inside(pos):
 			return false
 	return true
 

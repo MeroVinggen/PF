@@ -111,7 +111,7 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: f
 
 # Utility functions for other components
 func get_dynamic_obstacle_count() -> int:
-	return obstacle_manager._get_valid_dynamic_obstacles().size()
+	return obstacle_manager.dynamic_obstacles.size()
 
 func is_grid_dirty() -> bool:
 	return grid_dirty

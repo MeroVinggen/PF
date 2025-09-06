@@ -5,21 +5,27 @@ class_name ObstacleManager
 signal obstacles_changed()
 
 var system: PathfinderSystem
-var cache_manager: CacheManager
 var pending_static_changes: Array[PathfinderObstacle] = []
 var dynamic_obstacles: Array[PathfinderObstacle] = []
 
+# additional clean
+var cleanup_timer: float = 0.0
+const CLEANUP_INTERVAL: float = 1.0
+
 func _init(pathfinder_system: PathfinderSystem):
 	system = pathfinder_system
-	cache_manager = CacheManager.new()
 
 func update_system(delta: float):
-	cache_manager.update_cache(delta, system.obstacles + dynamic_obstacles)
-	 
+	cleanup_timer += delta
+	if cleanup_timer >= CLEANUP_INTERVAL:
+		_cleanup_invalid_obstacles()
+		cleanup_timer = 0.0
+	
 	if not pending_static_changes.is_empty():
 		_process_batched_static_changes()
-	 
-	_lazy_cleanup_obstacles()
+
+func _cleanup_invalid_obstacles():
+	dynamic_obstacles = dynamic_obstacles.filter(func(obs): return is_instance_valid(obs))
 
 func register_obstacle(obstacle: PathfinderObstacle):
 	if obstacle in system.obstacles:
@@ -85,10 +91,6 @@ func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array
 	
 	return affected
 
-func _get_valid_dynamic_obstacles() -> Array[PathfinderObstacle]:
-	"""Get filtered valid dynamic obstacles (cached)"""
-	return cache_manager.get_cached_valid_items(dynamic_obstacles)
-
 func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 	obstacle.system = system
 	
@@ -106,16 +108,6 @@ func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 	if not obstacle.static_state_changed.is_connected(_on_obstacle_static_changed):
 		obstacle.static_state_changed.connect(_on_obstacle_static_changed.bind(obstacle))
 
-func _is_obstacle_valid_cached(obstacle: PathfinderObstacle) -> bool:
-	"""Get cached validity or fallback to real check"""
-	return cache_manager.is_item_valid_cached(obstacle)
-
-func _lazy_cleanup_obstacles():
-	"""Remove invalid obstacles only when needed, not immediately"""
-	if cache_manager.validity_cache.is_empty():
-		return
-	system.obstacles = cache_manager.remove_invalid_items(system.obstacles)
-	dynamic_obstacles = cache_manager.remove_invalid_items(dynamic_obstacles)
 
 func _process_batched_static_changes():
 	"""Process multiple static/dynamic state changes in one batch"""
@@ -125,7 +117,7 @@ func _process_batched_static_changes():
 	var became_dynamic = 0
 	
 	for obstacle in pending_static_changes:
-		if not _is_obstacle_valid_cached(obstacle):
+		if not is_instance_valid(obstacle):
 			continue
 			
 		if obstacle.is_static:

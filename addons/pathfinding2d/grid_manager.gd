@@ -27,14 +27,11 @@ func build_grid():
 func update_grid_for_dynamic_obstacles():
 	print("=== UPDATING GRID FOR DYNAMIC OBSTACLES ===")
 	
-	# Use cached validation instead of repeated is_instance_valid calls
-	var valid_dynamic = system.obstacle_manager._get_valid_dynamic_obstacles()
-	
-	if valid_dynamic.is_empty():
+	if system.obstacle_manager.dynamic_obstacles.is_empty():
 		print("No valid dynamic obstacles - skipping grid update")
 		return
 	
-	var affected_bounds = _get_dynamic_obstacles_bounds_cached(valid_dynamic)
+	var affected_bounds = _get_dynamic_obstacles_bounds_cached(system.obstacle_manager.dynamic_obstacles)
 	
 	if affected_bounds.size.x <= 0 or affected_bounds.size.y <= 0:
 		print("Invalid bounds - skipping grid update")

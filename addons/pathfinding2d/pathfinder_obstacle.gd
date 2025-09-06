@@ -54,7 +54,7 @@ func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
 			(a.get_scale() - b.get_scale()).length() < PathfindingConstants.TRANSFORM_SCALE_THRESHOLD)
 
 func _exit_tree():
-	if system and not Engine.is_editor_hint():
+	if system:
 		system.unregister_obstacle(self)
 
 func _physics_process(delta):

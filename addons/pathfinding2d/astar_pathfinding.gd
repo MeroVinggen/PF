@@ -82,7 +82,7 @@ func _cleanup_path_nodes():
 
 func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: float) -> bool:
 	var distance = start.distance_to(end)
-	var samples = max(int(distance / (system.grid_size * 0.8)), 6)
+	var samples = max(int(distance / (system.grid_size * PathfindingConstants.SAMPLE_DISTANCE_FACTOR)), PathfindingConstants.MIN_PATH_SAMPLES)
 	
 	for i in samples + 1:
 		var t = float(i) / float(samples)
@@ -113,9 +113,7 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 			
 		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
 
-		# Add small tolerance to prevent edge cases
-		var safety_margin = PathfindingConstants.SAFETY_MARGIN
-		if distance_to_obstacle < (total_radius - safety_margin * 0.5):
+		if distance_to_obstacle < (total_radius - PathfindingConstants.SAFETY_MARGIN):
 			return true
 	
 	return false
@@ -176,7 +174,7 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	var max_iterations = PathfindingConstants.MAX_PATHFINDING_ITERATIONS
 	
 	# Dynamic goal tolerance based on agent size
-	var goal_tolerance = max(system.grid_size * 1.5, radius * 2.0)
+	var goal_tolerance = max(system.grid_size * PathfindingConstants.GOAL_TOLERANCE_GRID_SIZE_FACTOR, radius * PathfindingConstants.GOAL_TOLERANCE_RADIUS_FACTOR)
 
 	print("DEBUG: A* starting - start:", start, " goal:", goal, " tolerance:", goal_tolerance)
 
@@ -192,9 +190,6 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 		var current = open_set[current_idx]
 		open_set.remove_at(current_idx)
 		
-		if iterations <= 10:
-			print("DEBUG: Early iteration ", iterations, " at position: ", current.position)
-		
 		# Check if we reached the goal (with tolerance)
 		var snapped_goal = system.grid_manager.snap_to_grid(goal)
 		if current.position.distance_to(snapped_goal) < goal_tolerance:
@@ -203,12 +198,6 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 		
 		closed_set[current.position] = true
 
-		# ADD THIS CODE HERE:
-		if iterations % 50 == 0:  # Every 50th iteration
-			print("DEBUG: Iteration ", iterations, " exploring: ", current.position, " f_score: ", current.f_score)
-
-		closed_set[current.position] = true
-		
 		# Get neighbors with dynamic step size
 		var neighbors = _get_adaptive_neighbors(current.position, radius, buffer)
 		

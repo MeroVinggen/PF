@@ -46,13 +46,6 @@ func remove_invalid_items(items: Array) -> Array:
 	
 	return filtered_items
 
-func get_cache_stats() -> Dictionary:
-	return {
-		"cached_items": validity_cache.size(),
-		"cache_age": cache_timer,
-		"cache_interval": cache_interval
-	}
-
 func _refresh_validity_cache(items: Array) -> void:
 	validity_cache.clear()
 	

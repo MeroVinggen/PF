@@ -153,19 +153,3 @@ func clear_all():
 	systems_to_debug.clear()
 	obstacles_to_debug.clear()
 	pathfinders_to_debug.clear()
-
-func auto_discover_in_scene():
-	"""Auto-populate arrays with all pathfinding nodes in the scene"""
-	clear_all()
-	_find_pathfinding_nodes(get_tree().current_scene)
-
-func _find_pathfinding_nodes(node: Node):
-	if node is PathfinderSystem:
-		add_system(node)
-	elif node is PathfinderObstacle:
-		add_obstacle(node)
-	elif node is Pathfinder:
-		add_pathfinder(node)
-	
-	for child in node.get_children():
-		_find_pathfinding_nodes(child)

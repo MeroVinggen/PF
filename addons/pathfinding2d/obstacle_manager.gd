@@ -47,50 +47,6 @@ func unregister_obstacle(obstacle: PathfinderObstacle):
 	if obstacle.static_state_changed.is_connected(_on_obstacle_static_changed):
 		obstacle.static_state_changed.disconnect(_on_obstacle_static_changed)
 
-func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array[Pathfinder]:
-	"""Get pathfinders whose paths might be affected by this obstacle"""
-	# cleanup will happen in caller func 
-	var affected: Array[Pathfinder] = system.vector2_array_pool.get_pathfinder_array()
-	var world_poly = obstacle.get_world_polygon()
-	var obstacle_bounds = PathfindingUtils.get_polygon_bounds(world_poly)
-	
-	for pathfinder in system.pathfinders:
-		if not pathfinder.is_moving:
-			continue
-		
-		# Check if pathfinder's current path intersects obstacle area
-		var path = pathfinder.get_current_path()
-		var path_intersects = false
-		
-		# Check if pathfinder actually conflicts with this obstacle
-		if not system.astar_pathfinding._is_safe_circle_path(
-			pathfinder.global_position, 
-			pathfinder.get_next_waypoint(), 
-			pathfinder.agent_radius, 
-			pathfinder.agent_buffer
-		):
-			affected.append(pathfinder)
-		
-		# Check if any remaining path segments cross the obstacle area
-		if not path_intersects:
-			for i in range(pathfinder.path_index, path.size() - 1):
-				var segment_start = path[i]
-				var segment_end = path[i + 1]
-				
-				# Create bounding box for this segment
-				var segment_bounds = Rect2()
-				segment_bounds = segment_bounds.expand(segment_start)
-				segment_bounds = segment_bounds.expand(segment_end)
-				
-				if segment_bounds.intersects(obstacle_bounds):
-					path_intersects = true
-					break
-		
-		if path_intersects:
-			affected.append(pathfinder)
-	
-	return affected
-
 func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 	obstacle.system = system
 	

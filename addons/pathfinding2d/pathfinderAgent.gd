@@ -43,9 +43,6 @@ func _recalculate_or_find_alternative():
 		_pause_and_retry()
 		return
 	
-	if system.is_grid_dirty():
-		system.force_grid_update()
-	
 	var path = system.find_path_for_circle(global_position, target_position, agent_radius)
 	
 	if path.is_empty():

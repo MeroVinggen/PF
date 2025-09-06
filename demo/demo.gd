@@ -57,8 +57,7 @@ func _update_debug_ui():
 	
 	if pathfinder_system:
 		info.append("Grid: " + str(pathfinder_system.grid_manager.grid.size()))
-		info.append("Dynamic: " + str(pathfinder_system.get_dynamic_obstacle_count()))
-		info.append("Dirty: " + str(pathfinder_system.is_grid_dirty()))
+		info.append("Dynamic: " + str(pathfinder_system.obstacle_manager.dynamic_obstacles.size()))
 	
 	if pathfinder:
 		info.append("Moving: " + str(pathfinder.is_moving))
@@ -104,11 +103,7 @@ func _on_obstacle_movement_complete(target_pos: Vector2):
 	print("Dynamic obstacle now at: ", dynamic_obstacle.global_position)
 	print("Target was: ", target_pos)
 	print("Distance from target: ", dynamic_obstacle.global_position.distance_to(target_pos))
-	
-	# Force a grid update after movement
-	if pathfinder_system:
-		print("Forcing grid update after obstacle movement")
-		pathfinder_system.force_grid_update()
+
 
 func reload_current_scene():
 	get_tree().reload_current_scene()

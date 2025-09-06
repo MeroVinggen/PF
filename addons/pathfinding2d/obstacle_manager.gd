@@ -89,7 +89,7 @@ func _process_batched_static_changes():
 	
 	pending_static_changes.clear()
 
-func _on_obstacle_static_changed(is_now_static: bool, obstacle: PathfinderObstacle):
+func _on_obstacle_static_changed(obstacle: PathfinderObstacle):
 	# Queue static/dynamic state changes for batch processing
 	if obstacle not in pending_static_changes:
 		pending_static_changes.append(obstacle)

@@ -10,7 +10,6 @@ class_name PathfinderSystem
 ])
 
 @export var grid_size: float = 25.0
-@export var dynamic_update_rate: float = 0.1
 @export var auto_invalidate_paths: bool = true
 @export var pathfinders: Array[PathfinderAgent] = []
 @export var obstacles: Array[PathfinderObstacle] = []
@@ -27,7 +26,6 @@ class_name PathfinderSystem
 
 @onready var shared_validator: PathValidator = PathValidator.new(self)
 
-var grid_dirty: bool = false
 
 # Manager components
 var grid_manager: GridManager
@@ -81,7 +79,7 @@ func _register_initial_obstacles() -> void:
 
 func _invalidate_affected_paths():
 	for pathfinder in pathfinders:
-		if is_instance_valid(pathfinder) and pathfinder.is_moving and not pathfinder.is_path_valid():
+		if pathfinder.is_moving and not pathfinder.is_path_valid():
 			pathfinder.recalculate_path()
 
 func register_obstacle(obstacle: PathfinderObstacle):
@@ -107,18 +105,6 @@ func unregister_pathfinder(pathfinder: PathfinderAgent):
 
 func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = 2.0) -> PackedVector2Array:
 	return astar_pathfinding.find_path_for_circle(start, end, radius, buffer)
-
-# Utility functions for other components
-func get_dynamic_obstacle_count() -> int:
-	return obstacle_manager.dynamic_obstacles.size()
-
-func is_grid_dirty() -> bool:
-	return grid_dirty
-
-func force_grid_update():
-	if obstacle_manager.dynamic_obstacles.size() > 0:
-		grid_manager.update_grid_for_dynamic_obstacles()
-		grid_dirty = false
 
 # Methods used by PathValidator
 func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> bool:

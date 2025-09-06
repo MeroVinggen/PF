@@ -16,11 +16,6 @@ static func validate_pathfinder_system(system: PathfinderSystem) -> PackedString
 	elif system.grid_size > 100:
 		warnings.append("Large grid size (%s) may reduce pathfinding precision" % system.grid_size)
 	
-	if system.dynamic_update_rate <= 0:
-		warnings.append("Dynamic update rate must be greater than 0")
-	elif system.dynamic_update_rate < 0.05:
-		warnings.append("Very frequent dynamic updates (%.3fs) may impact performance" % system.dynamic_update_rate)
-	
 	# Cross-component validation with pathfinders
 	for pathfinder in system.pathfinders:
 		if is_instance_valid(pathfinder):

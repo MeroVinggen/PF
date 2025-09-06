@@ -2,7 +2,7 @@
 extends Node2D
 class_name PathfinderObstacle
 
-signal static_state_changed(is_now_static: bool, obstacle: PathfinderObstacle)
+signal static_state_changed(obstacle: PathfinderObstacle)
 signal obstacle_changed()
 
 @export var obstacle_polygon: PackedVector2Array = PackedVector2Array([
@@ -25,7 +25,7 @@ var rot_threshold: float
 func _set_is_static(value: bool):
 	if is_static != value:
 		is_static = value
-		static_state_changed.emit(is_static, self)
+		static_state_changed.emit(self)
 
 
 func _has_changed() -> bool:

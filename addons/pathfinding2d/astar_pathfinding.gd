@@ -20,18 +20,12 @@ func _init(pathfinder_system: PathfinderSystem, node_pool: PathNodePool, arr_poo
 func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = PathfindingConstants.SAFETY_MARGIN) -> PackedVector2Array:
 	print("=== PATHFINDING REQUEST ===")
 	print("Start: ", start, " End: ", end, " Radius: ", radius, " Buffer: ", buffer)
-	print("Grid dirty: ", system.grid_dirty)
 	print("Total obstacles: ", system.obstacles.size())
 	
 	# Log all obstacle positions and states
 	for i in range(system.obstacles.size()):
 		var obs = system.obstacles[i]
 		print("Obstacle ", i, ": pos=", obs.global_position, " static=", obs.is_static, " poly=", obs.get_world_polygon())
-	
-	if system.grid_dirty:
-		print("Updating grid for dynamic obstacles...")
-		system.grid_manager.update_grid_for_dynamic_obstacles()
-		system.grid_dirty = false
 	
 	if _is_safe_circle_path(start, end, radius, buffer):
 		print("Using direct path")

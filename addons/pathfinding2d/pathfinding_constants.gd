@@ -41,9 +41,7 @@ const RETRY_DELAY_SECONDS: float = 2.0
 const ALTERNATIVE_POSITION_RADIUS_MULTIPLIER: int = 3
 
 # === OBSTACLE MANAGER CONSTANTS ===
-const VALIDITY_CACHE_INTERVAL: float = 0.5   # Check validity every N seconds
 const MAX_BATCH_SIZE: int = 10               # Max items in batch before force processing
-const CLEANUP_THRESHOLD: int = 2             # Only log cleanup if more than N removed
 
 # === PATHFINDING BOUNDS CONSTANTS ===
 const BOUNDS_EXPANSION_CONSERVATIVE: float = 50.0  # Conservative bounds expansion

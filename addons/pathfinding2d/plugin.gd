@@ -17,7 +17,7 @@ func _enter_tree():
 	add_custom_type(
 		"PathfinderAgent",
 		"Node2D",
-		preload("res://addons/pathfinding2d/pathfinder.gd"),
+		preload("res://addons/pathfinding2d/pathfinderAgent.gd"),
 		preload("res://addons/pathfinding2d/icons/pathfinder_icon.svg")
 	)
 

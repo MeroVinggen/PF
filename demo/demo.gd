@@ -87,7 +87,7 @@ func _input(event):
 	elif event is InputEventKey and event.pressed:
 		match event.keycode:
 			KEY_R:
-				_force_grid_update()
+				reload_current_scene()
 
 func _test_pathfinding_to(target: Vector2):
 	print("Moving agent to: ", target)
@@ -120,12 +120,8 @@ func _on_obstacle_movement_complete(target_pos: Vector2):
 		print("Forcing grid update after obstacle movement")
 		pathfinder_system.force_grid_update()
 
-func _force_grid_update():
-	if pathfinder_system:
-		pathfinder_system.force_grid_update()
-		print("Forced grid update")
-	else:
-		print("No pathfinder system available")
+func reload_current_scene():
+	get_tree().reload_current_scene()
 
 # Signal handlers
 func _on_path_found(path: PackedVector2Array):

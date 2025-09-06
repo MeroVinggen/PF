@@ -51,6 +51,12 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: f
 		return PackedVector2Array()
 	
 	var path = _a_star_pathfind_circle(start_grid, end_grid, radius, buffer)
+	
+	# coneection to last point
+	if path.size() > 0 and path[-1].distance_to(end) > radius:
+		if _is_safe_circle_path(path[-1], end, radius, buffer):
+			path.append(end)
+	
 	print("A* result: ", path.size(), " waypoints")
 	
 	if path.size() > 2:
@@ -173,8 +179,8 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	var max_iterations = PathfindingConstants.MAX_PATHFINDING_ITERATIONS
 	
 	# Dynamic goal tolerance based on agent size
-	var goal_tolerance = max(system.grid_size * PathfindingConstants.GOAL_TOLERANCE_FACTOR, radius * PathfindingConstants.GOAL_TOLERANCE_MIN_FACTOR)
-	
+	var goal_tolerance = max(system.grid_size * 1.5, radius * 2.0)
+
 	print("DEBUG: A* starting - start:", start, " goal:", goal, " tolerance:", goal_tolerance)
 
 	while not open_set.is_empty() and iterations < max_iterations:
@@ -193,16 +199,12 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 			print("DEBUG: Early iteration ", iterations, " at position: ", current.position)
 		
 		# Check if we reached the goal (with tolerance)
-		if current.position.distance_to(goal) < goal_tolerance:
+		var snapped_goal = system.grid_manager.snap_to_grid(goal)
+		if current.position.distance_to(snapped_goal) < goal_tolerance:
 			print("DEBUG: A* found path in ", iterations, " iterations")
 			return _reconstruct_path(came_from, current.position, start)
 		
 		closed_set[current.position] = true
-		
-		# Check if we reached the goal (with tolerance)
-		if current.position.distance_to(goal) < goal_tolerance:
-			print("DEBUG: A* found path in ", iterations, " iterations")
-			return _reconstruct_path(came_from, current.position, start)
 
 		# ADD THIS CODE HERE:
 		if iterations % 50 == 0:  # Every 50th iteration

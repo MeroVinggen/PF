@@ -4,8 +4,8 @@ class_name PathfindingConstants
 
 # === A* PATHFINDING CONSTANTS ===
 const MAX_PATHFINDING_ITERATIONS: int = 3000
-const GOAL_TOLERANCE_FACTOR: float = 0.7  # Multiplied by grid_size
-const GOAL_TOLERANCE_MIN_FACTOR: float = 0.5  # Multiplied by radius
+const GOAL_TOLERANCE_FACTOR: float = 1.5  # Multiplied by grid_size
+const GOAL_TOLERANCE_MIN_FACTOR: float = 2.0  # Multiplied by radius
 const NODE_DISTANCE_THRESHOLD: float = 0.3  # For node matching in open set
 const SAFETY_MARGIN: float = 0.5  # Added to collision checks
 const SAMPLE_DISTANCE_FACTOR: float = 0.5  # Grid_size * factor for path sampling

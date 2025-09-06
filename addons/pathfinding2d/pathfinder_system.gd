@@ -12,7 +12,7 @@ class_name PathfinderSystem
 @export var grid_size: float = 25.0
 @export var dynamic_update_rate: float = 0.1
 @export var auto_invalidate_paths: bool = true
-@export var pathfinders: Array[Pathfinder] = []
+@export var pathfinders: Array[PathfinderAgent] = []
 @export var obstacles: Array[PathfinderObstacle] = []
 
 @export_group("PathNode Pool Settings")
@@ -36,6 +36,9 @@ var astar_pathfinding: AStarPathfinding
 var path_node_pool: PathNodePool
 var vector2_array_pool: GenericArrayPool
 
+var pending_grid_update: bool = false
+var pending_path_recalcs: bool = false
+
 func _ready():
 	path_node_pool = PathNodePool.new(pool_size, pool_allow_expand, pool_expand_step)
 	vector2_array_pool = GenericArrayPool.new(array_pool_size, array_pool_allow_expand, array_pool_expand_step)
@@ -47,18 +50,14 @@ func _ready():
 	if not Engine.is_editor_hint():
 		_initialize_system()
 
-func _physics_process(delta: float) -> void:
-	if Engine.is_editor_hint():
-		return
-	_update_dynamic_system(delta)
-
-func _update_dynamic_system(delta):
-	# Update obstacle manager
-	obstacle_manager.update_system(delta)
-	
-	if grid_dirty:
+func _process_batched_updates():
+	if pending_grid_update:
 		grid_manager.update_grid_for_dynamic_obstacles()
-		grid_dirty = false
+		pending_grid_update = false
+	
+	if pending_path_recalcs and auto_invalidate_paths:
+		_invalidate_affected_paths()
+		pending_path_recalcs = false
 
 func _initialize_system():
 	_register_initial_pathfinders()
@@ -91,18 +90,18 @@ func register_obstacle(obstacle: PathfinderObstacle):
 func unregister_obstacle(obstacle: PathfinderObstacle):
 	obstacle_manager.unregister_obstacle(obstacle)
 
-func register_pathfinder(pathfinder: Pathfinder):
+func register_pathfinder(pathfinder: PathfinderAgent):
 	if pathfinder not in pathfinders:
 		pathfinders.append(pathfinder)
 	
 	_prepare_registered_pathfinder(pathfinder)
 
-func _prepare_registered_pathfinder(pathfinder: Pathfinder):
+func _prepare_registered_pathfinder(pathfinder: PathfinderAgent):
 	pathfinder.system = self
 	pathfinder.validator = shared_validator
 	obstacle_manager.obstacles_changed.connect(pathfinder._on_obstacles_changed)
 
-func unregister_pathfinder(pathfinder: Pathfinder):
+func unregister_pathfinder(pathfinder: PathfinderAgent):
 	pathfinders.erase(pathfinder)
 	pathfinder.system = null
 

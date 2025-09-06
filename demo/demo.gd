@@ -3,7 +3,7 @@ extends Node2D
 
 @onready var movement_controller = MovementController.new()
 @onready var pathfinder_system = $PathfinderSystem
-@onready var pathfinder = $Pathfinder
+@onready var pathfinder = $PathfinderAgent
 @onready var dynamic_obstacle = $PathfinderObstacleD
 
 func _ready():

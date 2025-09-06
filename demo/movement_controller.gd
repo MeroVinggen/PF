@@ -1,6 +1,11 @@
 extends Node2D
 class_name MovementController
 
+signal waypoint_reached()
+signal destination_reached()
+signal agent_stuck()
+signal agent_unstuck()
+
 @export var movement_speed: float = 200.0
 @export var rotation_speed: float = 5.0
 @export var arrival_distance: float = 8.0
@@ -10,23 +15,18 @@ class_name MovementController
 @export var stuck_time_threshold: float = 2.0
 @export var unstuck_force: float = 50.0
 
-var pathfinder: Pathfinder
+var pathfinder: PathfinderAgent
 var target_node: Node2D
 
 # Stuck detection variables
 var last_positions: Array[Vector2] = []
 var stuck_timer: float = 0.0
 
-signal waypoint_reached()
-signal destination_reached()
-signal agent_stuck()
-signal agent_unstuck()
-
 func _ready():
 	if not target_node:
 		target_node = get_parent()
 
-func setup(pathfinder_ref: Pathfinder, node_to_move: Node2D = null):
+func setup(pathfinder_ref: PathfinderAgent, node_to_move: Node2D = null):
 	pathfinder = pathfinder_ref
 	if node_to_move:
 		target_node = node_to_move

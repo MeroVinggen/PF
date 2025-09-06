@@ -34,23 +34,23 @@ func get_vector2_array() -> Array[Vector2]:
 	array.clear()
 	return array
 
-func get_pathfinder_array() -> Array[Pathfinder]:
-	var array: Array[Pathfinder]
+func get_pathfinder_array() -> Array[PathfinderAgent]:
+	var array: Array[PathfinderAgent]
 	if pathfinder_pool.is_empty():
 		if pool_allow_expand:
 			_expand_pool(pathfinder_pool, pool_expand_step)
-			array = pathfinder_pool.pop_back() as Array[Pathfinder]
+			array = pathfinder_pool.pop_back() as Array[PathfinderAgent]
 		else:
 			array = []
 	else:
-		array = pathfinder_pool.pop_back() as Array[Pathfinder]
+		array = pathfinder_pool.pop_back() as Array[PathfinderAgent]
 	array.clear()
 	return array
 
 func return_vector2_array(array: Array[Vector2]) -> void:
 	_return_array(array, vector2_pool)
 
-func return_pathfinder_array(array: Array[Pathfinder]) -> void:
+func return_pathfinder_array(array: Array[PathfinderAgent]) -> void:
 	_return_array(array, pathfinder_pool)
 
 func _return_array(array, pool: Array) -> void:
@@ -66,7 +66,7 @@ func _expand_pool(pool: Array, count: int) -> void:
 			var typed_array: Array[Vector2] = []
 			pool.append(typed_array)
 		elif pool == pathfinder_pool:
-			var typed_array: Array[Pathfinder] = []
+			var typed_array: Array[PathfinderAgent] = []
 			pool.append(typed_array)
 		else:
 			# Fallback for unknown pool types

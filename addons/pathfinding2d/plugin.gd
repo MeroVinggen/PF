@@ -15,7 +15,7 @@ func _enter_tree():
 		preload("res://addons/pathfinding2d/icons/pathfinder_obstacle_icon.svg")
 	)
 	add_custom_type(
-		"Pathfinder",
+		"PathfinderAgent",
 		"Node2D",
 		preload("res://addons/pathfinding2d/pathfinder.gd"),
 		preload("res://addons/pathfinding2d/icons/pathfinder_icon.svg")
@@ -24,4 +24,4 @@ func _enter_tree():
 func _exit_tree():
 	remove_custom_type("PathfinderSystem")
 	remove_custom_type("PathfinderObstacle")
-	remove_custom_type("Pathfinder")
+	remove_custom_type("PathfinderAgent")

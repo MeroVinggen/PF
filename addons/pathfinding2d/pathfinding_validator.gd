@@ -56,8 +56,8 @@ static func validate_pathfinder_obstacle(obstacle: PathfinderObstacle) -> Packed
 	
 	return warnings
 
-# Validate Pathfinder configuration
-static func validate_pathfinder(pathfinder: Pathfinder) -> PackedStringArray:
+# Validate PathfinderAgent configuration
+static func validate_pathfinder(pathfinder: PathfinderAgent) -> PackedStringArray:
 	var warnings: PackedStringArray = []
 	
 	if pathfinder.agent_radius <= 0:

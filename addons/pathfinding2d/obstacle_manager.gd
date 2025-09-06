@@ -8,24 +8,12 @@ var system: PathfinderSystem
 var pending_static_changes: Array[PathfinderObstacle] = []
 var dynamic_obstacles: Array[PathfinderObstacle] = []
 
-# additional clean
-var cleanup_timer: float = 0.0
-const CLEANUP_INTERVAL: float = 1.0
-
 func _init(pathfinder_system: PathfinderSystem):
 	system = pathfinder_system
 
-func update_system(delta: float):
-	cleanup_timer += delta
-	if cleanup_timer >= CLEANUP_INTERVAL:
-		_cleanup_invalid_obstacles()
-		cleanup_timer = 0.0
-	
+func update_system():
 	if not pending_static_changes.is_empty():
 		_process_batched_static_changes()
-
-func _cleanup_invalid_obstacles():
-	dynamic_obstacles = dynamic_obstacles.filter(func(obs): return is_instance_valid(obs))
 
 func register_obstacle(obstacle: PathfinderObstacle):
 	if obstacle in system.obstacles:
@@ -62,7 +50,7 @@ func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 		obstacle.rot_threshold = PathfindingConstants.STATIC_ROTATION_THRESHOLD
 	
 	if not obstacle.static_state_changed.is_connected(_on_obstacle_static_changed):
-		obstacle.static_state_changed.connect(_on_obstacle_static_changed.bind(obstacle))
+		obstacle.static_state_changed.connect(_on_obstacle_static_changed)
 
 
 func _process_batched_static_changes():
@@ -102,7 +90,7 @@ func _process_batched_static_changes():
 	pending_static_changes.clear()
 
 func _on_obstacle_static_changed(is_now_static: bool, obstacle: PathfinderObstacle):
-	"""Queue static/dynamic state changes for batch processing"""
+	# Queue static/dynamic state changes for batch processing
 	if obstacle not in pending_static_changes:
 		pending_static_changes.append(obstacle)
 	
@@ -113,21 +101,10 @@ func _on_obstacle_static_changed(is_now_static: bool, obstacle: PathfinderObstac
 func _on_obstacle_changed():
 	print("=== OBSTACLE CHANGED EVENT ===")
 	
-	# Find which obstacle actually changed by checking all dynamic obstacles
-	var changed_obstacle = null
-	for obstacle in dynamic_obstacles:
-		if is_instance_valid(obstacle) and obstacle._has_changed():
-			changed_obstacle = obstacle
-			break
+	# Queue batched updates instead of immediate
+	if not system.pending_grid_update:
+		system.pending_grid_update = true
+		system.pending_path_recalcs = true
+		system.call_deferred("_process_batched_updates")
 	
-	if not changed_obstacle:
-		print("No changed obstacle found - skipping update")
-		return
-	
-	print("Changed obstacle at: ", changed_obstacle.global_position)
-	
-	# Update grid only around the changed obstacle
-	system.grid_manager.update_grid_around_obstacle(changed_obstacle)
-	
-	obstacles_changed.emit()
-	print("=== END OBSTACLE CHANGED ===")
+	update_system()

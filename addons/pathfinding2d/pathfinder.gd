@@ -1,6 +1,6 @@
 @tool
 extends Node2D
-class_name Pathfinder
+class_name PathfinderAgent
 
 signal path_found(path: PackedVector2Array)
 signal destination_reached()
@@ -27,7 +27,7 @@ func _exit_tree():
 		system.unregister_pathfinder(self)
 
 func _on_obstacles_changed():
-	print("DEBUG: Pathfinder received obstacles_changed signal")
+	print("DEBUG: PathfinderAgent received obstacles_changed signal")
 	if not is_moving or current_path.is_empty() or not validator:
 		return
 		

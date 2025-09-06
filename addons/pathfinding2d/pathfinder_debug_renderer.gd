@@ -4,7 +4,7 @@ class_name PathfindingDebugRenderer
 
 @export var systems_to_debug: Array[PathfinderSystem] = []
 @export var obstacles_to_debug: Array[PathfinderObstacle] = []
-@export var pathfinders_to_debug: Array[Pathfinder] = []
+@export var pathfinders_to_debug: Array[PathfinderAgent] = []
 
 @export_group("Debug Options")
 @export var draw_systems: bool = true
@@ -142,11 +142,11 @@ func add_obstacle(obstacle: PathfinderObstacle):
 func remove_obstacle(obstacle: PathfinderObstacle):
 	obstacles_to_debug.erase(obstacle)
 
-func add_pathfinder(pathfinder: Pathfinder):
+func add_pathfinder(pathfinder: PathfinderAgent):
 	if pathfinder not in pathfinders_to_debug:
 		pathfinders_to_debug.append(pathfinder)
 
-func remove_pathfinder(pathfinder: Pathfinder):
+func remove_pathfinder(pathfinder: PathfinderAgent):
 	pathfinders_to_debug.erase(pathfinder)
 
 func clear_all():

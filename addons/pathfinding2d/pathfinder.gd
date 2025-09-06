@@ -33,6 +33,7 @@ func _on_obstacles_changed():
 		
 	if not validator.is_path_safe(current_path, global_position, path_index, agent_radius, agent_buffer):
 		path_invalidated.emit()
+		consecutive_failed_recalcs = 0
 		_recalculate_or_find_alternative()
 
 func _recalculate_or_find_alternative():

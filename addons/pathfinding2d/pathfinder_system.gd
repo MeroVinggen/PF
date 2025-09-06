@@ -28,8 +28,6 @@ class_name PathfinderSystem
 @onready var shared_validator: PathValidator = PathValidator.new(self)
 
 var grid_dirty: bool = false
-var last_grid_update: float = 0.0
-var path_invalidation_timer: float = 0.0
 
 # Manager components
 var grid_manager: GridManager
@@ -55,23 +53,12 @@ func _physics_process(delta: float) -> void:
 	_update_dynamic_system(delta)
 
 func _update_dynamic_system(delta):
-	last_grid_update += delta
-	path_invalidation_timer += delta
-	
 	# Update obstacle manager
 	obstacle_manager.update_system(delta)
 	
-	var should_update_grid = grid_dirty and last_grid_update >= dynamic_update_rate
-	var should_invalidate_paths = auto_invalidate_paths and path_invalidation_timer >= dynamic_update_rate * 2
-	
-	if should_update_grid:
+	if grid_dirty:
 		grid_manager.update_grid_for_dynamic_obstacles()
 		grid_dirty = false
-		last_grid_update = 0.0
-	
-	if should_invalidate_paths and not obstacle_manager._get_valid_dynamic_obstacles().is_empty():
-		_invalidate_affected_paths()
-		path_invalidation_timer = 0.0
 
 func _initialize_system():
 	_register_initial_pathfinders()
@@ -114,7 +101,6 @@ func _prepare_registered_pathfinder(pathfinder: Pathfinder):
 	pathfinder.system = self
 	pathfinder.validator = shared_validator
 	obstacle_manager.obstacles_changed.connect(pathfinder._on_obstacles_changed)
-	
 
 func unregister_pathfinder(pathfinder: Pathfinder):
 	pathfinders.erase(pathfinder)
@@ -134,7 +120,6 @@ func force_grid_update():
 	if obstacle_manager.dynamic_obstacles.size() > 0:
 		grid_manager.update_grid_for_dynamic_obstacles()
 		grid_dirty = false
-		last_grid_update = 0.0
 
 # Methods used by PathValidator
 func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> bool:

@@ -1,3 +1,4 @@
+# CacheManager avoids calling is_instance_valid() on every obstacle every frame
 @tool
 extends RefCounted
 class_name CacheManager

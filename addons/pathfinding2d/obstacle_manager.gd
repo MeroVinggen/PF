@@ -7,8 +7,6 @@ signal obstacles_changed()
 var system: PathfinderSystem
 var cache_manager: CacheManager
 var pending_static_changes: Array[PathfinderObstacle] = []
-var batch_timer: float = 0.0
-var batch_interval: float = PathfindingConstants.BATCH_PROCESSING_INTERVAL
 var dynamic_obstacles: Array[PathfinderObstacle] = []
 
 func _init(pathfinder_system: PathfinderSystem):
@@ -17,11 +15,9 @@ func _init(pathfinder_system: PathfinderSystem):
 
 func update_system(delta: float):
 	cache_manager.update_cache(delta, system.obstacles + dynamic_obstacles)
-	batch_timer += delta
 	 
-	if batch_timer >= batch_interval and not pending_static_changes.is_empty():
+	if not pending_static_changes.is_empty():
 		_process_batched_static_changes()
-		batch_timer = 0.0
 	 
 	_lazy_cleanup_obstacles()
 
@@ -185,16 +181,5 @@ func _on_obstacle_changed():
 	# Update grid only around the changed obstacle
 	system.grid_manager.update_grid_around_obstacle(changed_obstacle)
 	
-	# Only invalidate paths that actually intersect with this obstacle
-	var affected_pathfinders = get_pathfinders_affected_by_obstacle(changed_obstacle)
-	print("Affecting ", affected_pathfinders.size(), " pathfinders")
-	
-	for pathfinder in affected_pathfinders:
-		if pathfinder.is_moving:
-			print("Invalidating path for pathfinder at: ", pathfinder.global_position)
-			pathfinder.consecutive_failed_recalcs = 0
-			pathfinder.call_deferred("_recalculate_or_find_alternative")
-			
-	system.vector2_array_pool.return_pathfinder_array(affected_pathfinders)
 	obstacles_changed.emit()
 	print("=== END OBSTACLE CHANGED ===")

@@ -42,7 +42,6 @@ const ALTERNATIVE_POSITION_RADIUS_MULTIPLIER: int = 3
 
 # === OBSTACLE MANAGER CONSTANTS ===
 const VALIDITY_CACHE_INTERVAL: float = 0.5   # Check validity every N seconds
-const BATCH_PROCESSING_INTERVAL: float = 0.1 # Process batches every N seconds
 const MAX_BATCH_SIZE: int = 10               # Max items in batch before force processing
 const CLEANUP_THRESHOLD: int = 2             # Only log cleanup if more than N removed
 

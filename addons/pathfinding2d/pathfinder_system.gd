@@ -90,7 +90,7 @@ func _register_initial_obstacles() -> void:
 			var world_poly = obstacle.get_world_polygon()
 			var bounds = PathfindingUtils.get_polygon_bounds(world_poly)
 			print("Obstacle ", i, ": pos=", obstacle.global_position, " bounds=", bounds, " static=", obstacle.is_static)
-		obstacle_manager.register_obstacle(obstacle)
+		obstacle_manager.register_initial_obstacle(obstacle)
 	print("=== END INITIAL OBSTACLES ===")
 
 func _invalidate_affected_paths():
@@ -113,6 +113,8 @@ func register_pathfinder(pathfinder: Pathfinder):
 func _prepare_registered_pathfinder(pathfinder: Pathfinder):
 	pathfinder.system = self
 	pathfinder.validator = shared_validator
+	obstacle_manager.obstacles_changed.connect(pathfinder._on_obstacles_changed)
+	
 
 func unregister_pathfinder(pathfinder: Pathfinder):
 	pathfinders.erase(pathfinder)

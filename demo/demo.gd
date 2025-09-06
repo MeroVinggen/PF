@@ -22,12 +22,6 @@ func _ready():
 	movement_controller.destination_reached.connect(_on_destination_reached)
 	movement_controller.agent_stuck.connect(_on_agent_stuck)
 	movement_controller.agent_unstuck.connect(_on_agent_unstuck)
-	
-	print("=== Demo Ready ===")
-	print("Controls:")
-	print("  Left Click - Move to position")
-	print("  Right Click - Move dynamic obstacle")
-	print("  R - Force grid update")
 
 func _on_waypoint_reached():
 	print("→ Waypoint reached")
@@ -41,7 +35,6 @@ func _setup_pathfinder_signals():
 		pathfinder.agent_unstuck.connect(_on_agent_unstuck)
 		pathfinder.path_invalidated.connect(_on_path_invalidated)
 		pathfinder.path_recalculated.connect(_on_path_recalculated)
-		print("All pathfinder signals connected")
 
 func _setup_demo_ui():
 	# Create UI labels for debug info
@@ -101,13 +94,10 @@ func _move_dynamic_obstacle_to(target: Vector2):
 	print("=== MOVING DYNAMIC OBSTACLE ===")
 	print("From: ", dynamic_obstacle.global_position, " To: ", target)
 	
-	if dynamic_obstacle:
-		# Create a smooth movement tween
-		var tween = create_tween()
-		tween.tween_property(dynamic_obstacle, "global_position", target, 1.0)
-		tween.tween_callback(_on_obstacle_movement_complete.bind(target))
-	else:
-		print("ERROR: No dynamic obstacle available")
+	# Create a smooth movement tween
+	var tween = create_tween()
+	tween.tween_property(dynamic_obstacle, "global_position", target, 1.0)
+	tween.tween_callback(_on_obstacle_movement_complete.bind(target))
 
 func _on_obstacle_movement_complete(target_pos: Vector2):
 	print("=== OBSTACLE MOVEMENT COMPLETE ===")

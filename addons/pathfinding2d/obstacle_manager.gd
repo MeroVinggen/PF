@@ -2,6 +2,8 @@
 extends RefCounted
 class_name ObstacleManager
 
+signal obstacles_changed()
+
 var system: PathfinderSystem
 var cache_manager: CacheManager
 var pending_static_changes: Array[PathfinderObstacle] = []
@@ -28,6 +30,9 @@ func register_obstacle(obstacle: PathfinderObstacle):
 		return
 	
 	system.obstacles.append(obstacle)
+	_prepare_registered_obstacle(obstacle)
+
+func register_initial_obstacle(obstacle) -> void:
 	_prepare_registered_obstacle(obstacle)
 
 func unregister_obstacle(obstacle: PathfinderObstacle):
@@ -90,11 +95,18 @@ func _get_valid_dynamic_obstacles() -> Array[PathfinderObstacle]:
 
 func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 	obstacle.system = system
-	if not obstacle.is_static and obstacle not in dynamic_obstacles:
-		dynamic_obstacles.append(obstacle)
+	
 	if not obstacle.is_static:
+		obstacle.pos_threshold = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD
+		obstacle.rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD
+		if obstacle not in dynamic_obstacles:
+			dynamic_obstacles.append(obstacle)
 		if not obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
 			obstacle.obstacle_changed.connect(_on_obstacle_changed)
+	else:
+		obstacle.pos_threshold = PathfindingConstants.STATIC_POSITION_THRESHOLD
+		obstacle.rot_threshold = PathfindingConstants.STATIC_ROTATION_THRESHOLD
+	
 	if not obstacle.static_state_changed.is_connected(_on_obstacle_static_changed):
 		obstacle.static_state_changed.connect(_on_obstacle_static_changed.bind(obstacle))
 
@@ -122,6 +134,8 @@ func _process_batched_static_changes():
 			
 		if obstacle.is_static:
 			# Became static - remove from dynamic list
+			obstacle.pos_threshold = PathfindingConstants.STATIC_POSITION_THRESHOLD
+			obstacle.rot_threshold = PathfindingConstants.STATIC_ROTATION_THRESHOLD
 			if obstacle in dynamic_obstacles:
 				dynamic_obstacles.erase(obstacle)
 				became_static += 1
@@ -129,6 +143,8 @@ func _process_batched_static_changes():
 					obstacle.obstacle_changed.disconnect(_on_obstacle_changed)
 		else:
 			# Became dynamic - add to dynamic list
+			obstacle.pos_threshold = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD
+			obstacle.rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD
 			if obstacle not in dynamic_obstacles:
 				dynamic_obstacles.append(obstacle)
 				became_dynamic += 1
@@ -180,4 +196,5 @@ func _on_obstacle_changed():
 			pathfinder.call_deferred("_recalculate_or_find_alternative")
 			
 	system.vector2_array_pool.return_pathfinder_array(affected_pathfinders)
+	obstacles_changed.emit()
 	print("=== END OBSTACLE CHANGED ===")

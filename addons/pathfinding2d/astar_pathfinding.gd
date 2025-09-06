@@ -112,10 +112,7 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 			continue
 			
 		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
-		
-		if pos.x > 300 and pos.x < 340 and pos.y > 310 and pos.y < 330:
-			print("DEBUG: Position ", pos, " distance to obstacle at ", obstacle.global_position, ": ", distance_to_obstacle, " total_radius: ", total_radius)
-		
+
 		# Add small tolerance to prevent edge cases
 		var safety_margin = PathfindingConstants.SAFETY_MARGIN
 		if distance_to_obstacle < (total_radius - safety_margin * 0.5):

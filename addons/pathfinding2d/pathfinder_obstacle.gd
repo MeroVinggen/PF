@@ -19,35 +19,36 @@ var last_position: Vector2
 var last_polygon: PackedVector2Array
 var last_transform: Transform2D
 
+var pos_threshold: float
+var rot_threshold: float
+
 func _set_is_static(value: bool):
 	if is_static != value:
 		is_static = value
 		static_state_changed.emit(is_static)
 
+
 func _has_changed() -> bool:
-	# More sensitive change detection for better responsiveness
-	var pos_threshold = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD if not is_static else PathfindingConstants.STATIC_POSITION_THRESHOLD # Triggers for dynamic
-	var rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD if not is_static else PathfindingConstants.STATIC_ROTATION_THRESHOLD
+	# pos chenged
+	if last_position.distance_to(global_position) > pos_threshold:
+		return true
 	
-	var pos_changed = last_position.distance_to(global_position) > pos_threshold
-	var poly_changed = obstacle_polygon.size() != last_polygon.size()
-	
-	if not poly_changed:
+	# polygon changed by size
+	if obstacle_polygon.size() != last_polygon.size():
+		return true
+	# polygon changed by vertex
+	else: 
 		for i in obstacle_polygon.size():
 			if obstacle_polygon[i].distance_to(last_polygon[i]) > PathfindingConstants.POLYGON_CHANGE_THRESHOLD:
-				poly_changed = true
-				break
+				return true
 	
-	var transform_changed = false
+	# transform changed
 	if not _transforms_roughly_equal(last_transform, global_transform):
-		transform_changed = true
+		return true
 	
-	return pos_changed or poly_changed or transform_changed
+	return false
 
 func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
-	var pos_threshold: float = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD if not is_static else PathfindingConstants.STATIC_POSITION_THRESHOLD  # Tighter for dynamic
-	var rot_threshold: float = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD if not is_static else PathfindingConstants.STATIC_ROTATION_THRESHOLD
-
 	return (a.origin.distance_to(b.origin) < pos_threshold and 
 			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and
 			(a.get_scale() - b.get_scale()).length() < PathfindingConstants.TRANSFORM_SCALE_THRESHOLD)
@@ -65,18 +66,14 @@ func _physics_process(delta):
 
 func _check_for_changes():
 	if _has_changed():
-		print("=== OBSTACLE CHANGE DETECTED ===")
 		print("Obstacle at: ", global_position, " (was: ", last_position, ")")
-		print("Transform changed: ", not _transforms_roughly_equal(last_transform, global_transform))
 		_store_last_state()
 		obstacle_changed.emit()
-		if system:
-			system._on_obstacle_changed()
-		print("=== END OBSTACLE CHANGE ===")
+		last_position = global_position  # Update position for next frame
 
 func _store_last_state():
 	"""Store current state for change detection"""
-	last_position = global_position
+	# Don't update last_position immediately, let it be updated next frame
 	last_polygon = obstacle_polygon.duplicate()
 	last_transform = global_transform
 

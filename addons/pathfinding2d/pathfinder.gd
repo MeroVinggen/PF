@@ -12,7 +12,6 @@ signal path_recalculated()
 
 @export var agent_radius: float = 10.0
 @export var agent_buffer: float = 2.0
-@export var path_validation_rate: float = 0.2
 
 var system: PathfinderSystem
 var validator: PathValidator
@@ -21,36 +20,25 @@ var target_position: Vector2
 var path_index: int = 0
 var is_moving: bool = false
 
-var path_validation_timer: float = 0.0
 var consecutive_failed_recalcs: int = 0
-var max_failed_recalcs: int = PathfindingConstants.MAX_FAILED_RECALCULATIONS
-
-func _physics_process(delta: float) -> void:
-	if Engine.is_editor_hint():
-		return
-	
-	_update_path_validation(delta)
 
 func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)
 
-func _update_path_validation(delta):
+func _on_obstacles_changed():
+	print("DEBUG: Pathfinder received obstacles_changed signal")
 	if not is_moving or current_path.is_empty() or not validator:
 		return
-	
-	path_validation_timer += delta
-	if path_validation_timer >= path_validation_rate:
-		path_validation_timer = 0.0
 		
-		if not validator.is_path_safe(current_path, global_position, path_index, agent_radius, agent_buffer):
-			path_invalidated.emit()
-			_recalculate_or_find_alternative()
+	if not validator.is_path_safe(current_path, global_position, path_index, agent_radius, agent_buffer):
+		path_invalidated.emit()
+		_recalculate_or_find_alternative()
 
 func _recalculate_or_find_alternative():
 	consecutive_failed_recalcs += 1
 	
-	if consecutive_failed_recalcs >= max_failed_recalcs:
+	if consecutive_failed_recalcs >= PathfindingConstants.MAX_FAILED_RECALCULATIONS:
 		_pause_and_retry()
 		return
 	
@@ -123,7 +111,6 @@ func find_path_to(destination: Vector2) -> bool:
 	path_index = 0
 	is_moving = true
 	
-	path_validation_timer = 0.0
 	consecutive_failed_recalcs = 0
 	
 	path_found.emit(current_path)

@@ -69,14 +69,7 @@ static func validate_pathfinder(pathfinder: Pathfinder) -> PackedStringArray:
 		warnings.append("Agent buffer cannot be negative")
 	elif pathfinder.agent_buffer > pathfinder.agent_radius:
 		warnings.append("Agent buffer (%.1f) larger than radius (%.1f) may be excessive" % [pathfinder.agent_buffer, pathfinder.agent_radius])
-	
-	if pathfinder.path_validation_rate <= 0:
-		warnings.append("Path validation rate must be greater than 0")
-	elif pathfinder.path_validation_rate > 1.0:
-		warnings.append("Infrequent path validation (%.1fs) may miss dynamic obstacles" % pathfinder.path_validation_rate)
-	elif pathfinder.path_validation_rate < 0.05:
-		warnings.append("Very frequent path validation (%.3fs) may impact performance" % pathfinder.path_validation_rate)
-	
+
 	return warnings
 
 # Helper function to detect basic self-intersections in polygon

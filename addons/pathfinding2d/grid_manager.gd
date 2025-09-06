@@ -35,7 +35,6 @@ func update_grid_for_dynamic_obstacles():
 		return
 	
 	var affected_bounds = _get_dynamic_obstacles_bounds_cached(valid_dynamic)
-	print("Affected bounds: ", affected_bounds)
 	
 	if affected_bounds.size.x <= 0 or affected_bounds.size.y <= 0:
 		print("Invalid bounds - skipping grid update")

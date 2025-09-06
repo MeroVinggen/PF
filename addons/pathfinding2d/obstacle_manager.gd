@@ -101,10 +101,14 @@ func _on_obstacle_static_changed(obstacle: PathfinderObstacle):
 func _on_obstacle_changed():
 	print("=== OBSTACLE CHANGED EVENT ===")
 	
-	# Queue batched updates instead of immediate
+	# Immediate path invalidation - don't defer this
+	for pathfinder in system.pathfinders:
+		if pathfinder.is_moving and not pathfinder.is_path_valid():
+			pathfinder.recalculate_path()
+	
+	# Defer only the grid update (less critical)
 	if not system.pending_grid_update:
 		system.pending_grid_update = true
-		system.pending_path_recalcs = true
 		system.call_deferred("_process_batched_updates")
 	
 	update_system()

@@ -52,10 +52,6 @@ func _process_batched_updates():
 	if pending_grid_update:
 		grid_manager.update_grid_for_dynamic_obstacles()
 		pending_grid_update = false
-	
-	if pending_path_recalcs and auto_invalidate_paths:
-		_invalidate_affected_paths()
-		pending_path_recalcs = false
 
 func _initialize_system():
 	_register_initial_pathfinders()

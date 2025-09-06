@@ -52,9 +52,6 @@ func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array
 	var world_poly = obstacle.get_world_polygon()
 	var obstacle_bounds = PathfindingUtils.get_polygon_bounds(world_poly)
 	
-	# Expand bounds to account for agent sizes
-	obstacle_bounds = obstacle_bounds.grow(PathfindingConstants.BOUNDS_EXPANSION_CONSERVATIVE)  # Conservative expansion
-	
 	for pathfinder in system.pathfinders:
 		if not is_instance_valid(pathfinder) or not pathfinder.is_moving:
 			continue
@@ -63,11 +60,14 @@ func get_pathfinders_affected_by_obstacle(obstacle: PathfinderObstacle) -> Array
 		var path = pathfinder.get_current_path()
 		var path_intersects = false
 		
-		# Check if any remaining waypoints are in the obstacle area
-		for i in range(pathfinder.path_index, path.size()):
-			if obstacle_bounds.has_point(path[i]):
-				path_intersects = true
-				break
+		# Check if pathfinder actually conflicts with this obstacle
+		if not system.astar_pathfinding._is_safe_circle_path(
+			pathfinder.global_position, 
+			pathfinder.get_next_waypoint(), 
+			pathfinder.agent_radius, 
+			pathfinder.agent_buffer
+		):
+			affected.append(pathfinder)
 		
 		# Check if any remaining path segments cross the obstacle area
 		if not path_intersects:

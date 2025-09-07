@@ -3,7 +3,7 @@ extends Node2D
 class_name PathfinderObstacle
 
 signal static_state_changed(obstacle: PathfinderObstacle)
-signal obstacle_changed()
+signal obstacle_changed(obstacle: PathfinderObstacle)
 
 @export var obstacle_polygon: PackedVector2Array = PackedVector2Array([
 	Vector2(-25, -25),
@@ -90,7 +90,7 @@ func _check_for_changes():
 			print("Obstacle at: ", global_position, " (was: ", last_position, ")")
 			i = 0
 		_store_last_state()
-		obstacle_changed.emit()
+		obstacle_changed.emit(self)
 		last_position = global_position  # Update position for next frame
 
 func _store_last_state():

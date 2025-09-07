@@ -15,13 +15,16 @@ func register_obstacle(obstacle: PathfinderObstacle):
 		return
 	
 	system.obstacles.append(obstacle)
+	system.spatial_partition.add_obstacle(obstacle)
 	_prepare_registered_obstacle(obstacle)
 
 func register_initial_obstacle(obstacle) -> void:
+	system.spatial_partition.add_obstacle(obstacle)
 	_prepare_registered_obstacle(obstacle)
 
 func unregister_obstacle(obstacle: PathfinderObstacle):
 	system.obstacles.erase(obstacle)
+	system.spatial_partition.remove_obstacle(obstacle)
 	dynamic_obstacles.erase(obstacle)
 	obstacle.system = null
 	
@@ -50,6 +53,7 @@ func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 func _on_obstacle_static_changed(obstacle: PathfinderObstacle):
 	system.batch_manager.queue_obstacle_update(obstacle, "static_changed")
 
-func _on_obstacle_changed():
+func _on_obstacle_changed(obstacle: PathfinderObstacle):
+	system.spatial_partition.update_obstacle(obstacle)
 	system.batch_manager.queue_obstacle_update(null, "position_changed")
 	system.batch_manager.queue_path_recalculation()

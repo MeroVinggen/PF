@@ -26,7 +26,7 @@ class_name PathfinderSystem
 
 @onready var shared_validator: PathValidator = PathValidator.new(self)
 
-# Manager components
+var spatial_partition: SpatialPartition
 var grid_manager: GridManager
 var obstacle_manager: ObstacleManager
 var astar_pathfinding: AStarPathfinding
@@ -44,6 +44,7 @@ func _ready():
 	obstacle_manager = ObstacleManager.new(self)
 	astar_pathfinding = AStarPathfinding.new(self, path_node_pool, vector2_array_pool)
 	batch_manager = BatchUpdateManager.new(self)
+	spatial_partition = SpatialPartition.new(self, grid_size * 4)  # 4x grid size sectors
 	
 	if not Engine.is_editor_hint():
 		_initialize_system()
@@ -114,7 +115,8 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 	
 	# First, find which obstacle(s) contain this point
 	var containing_obstacles: Array[PathfinderObstacle] = []
-	for obstacle in obstacles:
+	var nearby_obstacles = spatial_partition.get_obstacles_near_point(unsafe_pos, radius + buffer + PathfindingConstants.CLEARANCE_BASE_ADDITION)
+	for obstacle in nearby_obstacles:
 		if is_instance_valid(obstacle) and obstacle.is_point_inside(unsafe_pos):
 			containing_obstacles.append(obstacle)
 	

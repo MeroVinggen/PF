@@ -64,7 +64,8 @@ func snap_to_grid(pos: Vector2) -> Vector2:
 	)
 
 func _is_grid_point_clear(pos: Vector2) -> bool:
-	for obstacle in system.obstacles:
+	var nearby_obstacles = system.spatial_partition.get_obstacles_near_point(pos, system.grid_size)
+	for obstacle in nearby_obstacles:
 		if obstacle.disabled:
 			continue
 		if obstacle.is_point_inside(pos):

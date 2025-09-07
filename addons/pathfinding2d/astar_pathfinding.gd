@@ -87,12 +87,12 @@ func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: f
 func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> bool:
 	var total_radius = radius + buffer
 	
-	# Must be within bounds
 	if not PathfindingUtils.is_point_in_polygon(pos, system.bounds_polygon):
 		return true
 	
-	# Check distance to all obstacles
-	for obstacle in system.obstacles:
+	# Use spatial partition instead of checking all obstacles
+	var nearby_obstacles = system.spatial_partition.get_obstacles_near_point(pos, total_radius)
+	for obstacle in nearby_obstacles:
 		if obstacle.disabled:
 			continue
 		if not ((obstacle.layer & system.current_pathfinder_mask) != 0):
@@ -102,7 +102,6 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 			continue
 			
 		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
-
 		if distance_to_obstacle < (total_radius - PathfindingConstants.SAFETY_MARGIN):
 			return true
 	

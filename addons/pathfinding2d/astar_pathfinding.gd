@@ -80,8 +80,6 @@ func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: f
 		var test_pos = start.lerp(end, t)
 		
 		if _is_circle_position_unsafe(test_pos, radius, buffer):
-			if start.distance_to(Vector2(310, 307)) < 50 or end.distance_to(Vector2(310, 307)) < 50:
-				print("DEBUG: Path blocked at sample ", i, " pos:", test_pos, " between ", start, " -> ", end)
 			return false
 	
 	return true
@@ -95,6 +93,8 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 	
 	# Check distance to all obstacles
 	for obstacle in system.obstacles:
+		if obstacle.disabled:
+			continue
 		var world_poly = obstacle.get_world_polygon()
 		if world_poly.is_empty():
 			continue
@@ -199,14 +199,10 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 			
 			if _is_circle_position_unsafe(neighbor_pos, radius, buffer):
 				unsafe_neighbors += 1
-				if neighbor_pos.distance_to(Vector2(308, 302)) < 30:
-					print("DEBUG: Neighbor unsafe at ", neighbor_pos, " (near goal)")
 				continue
 			
 			if not _is_safe_circle_path(current.position, neighbor_pos, radius, buffer):
 				path_blocked_neighbors += 1
-				if neighbor_pos.distance_to(Vector2(308, 302)) < 30:
-					print("DEBUG: Path blocked from ", current.position, " to ", neighbor_pos, " (near goal)")
 				continue
 			
 			valid_neighbors += 1

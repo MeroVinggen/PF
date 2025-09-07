@@ -38,7 +38,7 @@ func unregister_obstacle(obstacle: PathfinderObstacle):
 func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
 	obstacle.system = system
 	
-	if not obstacle.is_static:
+	if not obstacle.is_static and not obstacle.disabled:
 		obstacle.pos_threshold = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD
 		obstacle.rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD
 		if obstacle not in dynamic_obstacles:
@@ -63,7 +63,11 @@ func _process_batched_static_changes():
 	for obstacle in pending_static_changes:
 		if not is_instance_valid(obstacle):
 			continue
-			
+		
+		if obstacle.disabled and obstacle in dynamic_obstacles:
+			dynamic_obstacles.erase(obstacle)
+			continue
+		
 		if obstacle.is_static:
 			# Became static - remove from dynamic list
 			obstacle.pos_threshold = PathfindingConstants.STATIC_POSITION_THRESHOLD

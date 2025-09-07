@@ -13,6 +13,7 @@ signal obstacle_changed()
 ])
 
 @export var is_static: bool = true : set = _set_is_static
+@export var disabled: bool = false : set = _set_disabled
 
 var system: PathfinderSystem
 var last_position: Vector2
@@ -27,6 +28,20 @@ func _set_is_static(value: bool):
 		is_static = value
 		static_state_changed.emit(self)
 
+func _set_disabled(value: bool):
+	if disabled != value:
+		disabled = value
+		static_state_changed.emit(self)
+
+func _physics_process(delta):
+	if Engine.is_editor_hint() or is_static or disabled:
+		return
+	
+	_check_for_changes()
+
+func _exit_tree():
+	if system:
+		system.unregister_obstacle(self)
 
 func _has_changed() -> bool:
 	# pos chenged
@@ -52,17 +67,6 @@ func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
 	return (a.origin.distance_to(b.origin) < pos_threshold and 
 			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and
 			(a.get_scale() - b.get_scale()).length() < PathfindingConstants.TRANSFORM_SCALE_THRESHOLD)
-
-func _exit_tree():
-	if system:
-		system.unregister_obstacle(self)
-
-func _physics_process(delta):
-	if Engine.is_editor_hint() or is_static:
-		return
-	
-	_check_for_changes()
-
 
 func _check_for_changes():
 	if _has_changed():

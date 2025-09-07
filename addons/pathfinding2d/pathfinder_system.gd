@@ -26,16 +26,13 @@ class_name PathfinderSystem
 
 @onready var shared_validator: PathValidator = PathValidator.new(self)
 
-
 # Manager components
 var grid_manager: GridManager
 var obstacle_manager: ObstacleManager
 var astar_pathfinding: AStarPathfinding
 var path_node_pool: PathNodePool
 var vector2_array_pool: GenericArrayPool
-
-var pending_grid_update: bool = false
-var pending_path_recalcs: bool = false
+var batch_manager: BatchUpdateManager
 
 var current_pathfinder_mask: int = 1
 
@@ -46,14 +43,14 @@ func _ready():
 	grid_manager = GridManager.new(self)
 	obstacle_manager = ObstacleManager.new(self)
 	astar_pathfinding = AStarPathfinding.new(self, path_node_pool, vector2_array_pool)
+	batch_manager = BatchUpdateManager.new(self)
 	
 	if not Engine.is_editor_hint():
 		_initialize_system()
 
-func _process_batched_updates():
-	if pending_grid_update:
-		grid_manager.update_grid_for_dynamic_obstacles()
-		pending_grid_update = false
+func _process(delta: float):
+	if not Engine.is_editor_hint():
+		batch_manager.process_frame(delta)
 
 func _initialize_system():
 	_register_initial_pathfinders()

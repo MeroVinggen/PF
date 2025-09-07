@@ -159,6 +159,3 @@ func is_path_valid() -> bool:
 func recalculate_path():
 	if is_moving:
 		_recalculate_or_find_alternative()
-
-func _get_configuration_warnings() -> PackedStringArray:
-	return PathfindingValidator.validate_pathfinder(self)

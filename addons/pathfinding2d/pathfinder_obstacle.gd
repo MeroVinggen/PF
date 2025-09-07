@@ -105,6 +105,3 @@ func get_world_polygon() -> PackedVector2Array:
 func is_point_inside(point: Vector2) -> bool:
 	var local_point = global_transform.affine_inverse() * point
 	return PathfindingUtils.is_point_in_polygon(local_point, obstacle_polygon)
-
-func _get_configuration_warnings() -> PackedStringArray:
-	return PathfindingValidator.validate_pathfinder_obstacle(self)

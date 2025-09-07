@@ -269,6 +269,3 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 					return candidate
 	
 	return closest_point
-
-func _get_configuration_warnings() -> PackedStringArray:
-	return PathfindingValidator.validate_pathfinder_system(self)

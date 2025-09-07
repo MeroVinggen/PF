@@ -25,8 +25,6 @@ func build_grid():
 				grid[pos] = _is_grid_point_clear(pos)
 
 func update_grid_for_dynamic_obstacles():
-	print("DEBUG: UPDATING GRID FOR DYNAMIC OBSTACLES")
-	
 	if system.obstacle_manager.dynamic_obstacles.is_empty():
 		print("No valid dynamic obstacles - skipping grid update")
 		return

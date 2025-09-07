@@ -123,7 +123,26 @@ func move_to(destination: Vector2) -> bool:
 func get_next_waypoint() -> Vector2:
 	if current_path.is_empty() or path_index >= current_path.size():
 		return Vector2.INF
-	return current_path[path_index]
+	
+	var next_point = current_path[path_index]
+	
+	# Check if this waypoint is now unsafe
+	if validator.is_circle_position_unsafe(next_point, agent_radius, agent_buffer):
+		# First try: find a close safe alternative without full recalculation
+		var safe_alternative = validator.find_closest_safe_point(next_point, agent_radius, agent_buffer)
+		
+		if safe_alternative != Vector2.INF and next_point.distance_to(safe_alternative) < agent_radius * 3:
+			# Small deviation - just update this waypoint
+			current_path[path_index] = safe_alternative
+			return safe_alternative
+		else:
+			# Large deviation or no safe point - trigger full recalculation
+			_recalculate_or_find_alternative()
+			if path_index < current_path.size():
+				return current_path[path_index]
+			return Vector2.INF
+	
+	return next_point
 
 func advance_to_next_waypoint() -> bool:
 	path_index += 1

@@ -82,10 +82,13 @@ func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
 	return (a.origin.distance_to(b.origin) < pos_threshold and 
 			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and
 			(a.get_scale() - b.get_scale()).length() < PathfindingConstants.TRANSFORM_SCALE_THRESHOLD)
-
+var i: int = 0
 func _check_for_changes():
 	if _has_changed():
-		print("Obstacle at: ", global_position, " (was: ", last_position, ")")
+		i += 1
+		if i >= 3:
+			print("Obstacle at: ", global_position, " (was: ", last_position, ")")
+			i = 0
 		_store_last_state()
 		obstacle_changed.emit()
 		last_position = global_position  # Update position for next frame

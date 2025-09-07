@@ -95,6 +95,8 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 	for obstacle in system.obstacles:
 		if obstacle.disabled:
 			continue
+		if not ((obstacle.layer & system.current_pathfinder_mask) != 0):
+			continue
 		var world_poly = obstacle.get_world_polygon()
 		if world_poly.is_empty():
 			continue

@@ -14,6 +14,7 @@ signal obstacle_changed()
 
 @export var is_static: bool = true : set = _set_is_static
 @export var disabled: bool = false : set = _set_disabled
+@export_flags_2d_physics var layer: int = 1
 
 var system: PathfinderSystem
 var last_position: Vector2

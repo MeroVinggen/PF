@@ -12,6 +12,7 @@ signal path_recalculated()
 
 @export var agent_radius: float = 10.0
 @export var agent_buffer: float = 2.0
+@export_flags_2d_physics var mask: int = 1
 
 var system: PathfinderSystem
 var validator: PathValidator
@@ -45,7 +46,7 @@ func _recalculate_or_find_alternative():
 		_pause_and_retry()
 		return
 	
-	var path = system.find_path_for_circle(global_position, target_position, agent_radius)
+	var path = system.find_path_for_circle(global_position, target_position, agent_radius, mask)
 	
 	if path.is_empty():
 		# Try nearby positions around target
@@ -54,7 +55,7 @@ func _recalculate_or_find_alternative():
 			var offset = Vector2(cos(angle), sin(angle)) * (agent_radius * PathfindingConstants.ALTERNATIVE_POSITION_RADIUS_MULTIPLIER)
 			var test_pos = target_position + offset
 			if _is_point_in_bounds(test_pos) and not validator.is_circle_position_unsafe(test_pos, agent_radius, agent_buffer):
-				path = system.find_path_for_circle(global_position, test_pos, agent_radius)
+				path = system.find_path_for_circle(global_position, test_pos, agent_radius, mask)
 				if not path.is_empty():
 					target_position = test_pos
 					break
@@ -100,7 +101,7 @@ func find_path_to(destination: Vector2) -> bool:
 		
 		print("Redirected to safe point: ", safe_destination, " (distance: ", destination.distance_to(safe_destination), ")")
 	
-	var path = system.find_path_for_circle(global_position, safe_destination, agent_radius, agent_buffer)
+	var path = system.find_path_for_circle(global_position, safe_destination, agent_radius, agent_buffer, mask)
 	
 	if path.is_empty():
 		path_blocked.emit()

@@ -37,6 +37,8 @@ var vector2_array_pool: GenericArrayPool
 var pending_grid_update: bool = false
 var pending_path_recalcs: bool = false
 
+var current_pathfinder_mask: int = 1
+
 func _ready():
 	path_node_pool = PathNodePool.new(pool_size, pool_allow_expand, pool_expand_step)
 	vector2_array_pool = GenericArrayPool.new(array_pool_size, array_pool_allow_expand, array_pool_expand_step)
@@ -99,7 +101,8 @@ func unregister_pathfinder(pathfinder: PathfinderAgent):
 	pathfinders.erase(pathfinder)
 	pathfinder.system = null
 
-func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = 2.0) -> PackedVector2Array:
+func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = 2.0, mask: int = 1) -> PackedVector2Array:
+	current_pathfinder_mask = mask
 	return astar_pathfinding.find_path_for_circle(start, end, radius, buffer)
 
 # Methods used by PathValidator

@@ -45,6 +45,7 @@ var astar_pathfinding: AStarPathfinding
 var path_node_pool: PathNodePool
 var vector2_array_pool: GenericArrayPool
 var batch_manager: BatchUpdateManager
+var path_collision_checker: PathCollisionChecker
 
 var current_pathfinder_mask: int = 1
 
@@ -57,6 +58,7 @@ func _ready():
 	astar_pathfinding = AStarPathfinding.new(self, path_node_pool, vector2_array_pool)
 	batch_manager = BatchUpdateManager.new(self, batch_update_fps)
 	spatial_partition = SpatialPartition.new(self, grid_size * sector_size_multiplier, quadtree_max_objects, quadtree_max_levels)
+	path_collision_checker = PathCollisionChecker.new(self)
 	
 	if not Engine.is_editor_hint():
 		_initialize_system()

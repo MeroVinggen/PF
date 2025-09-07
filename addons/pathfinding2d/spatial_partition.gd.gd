@@ -4,25 +4,31 @@ class_name SpatialPartition
 
 var system: PathfinderSystem
 var sector_size: float
-var sectors: Dictionary = {}  # Vector2i -> Array[PathfinderObstacle]
+# typing: Vector2i -> Array[PathfinderObstacle]
+var sectors: Dictionary = {}  
+var max_objects: int
+var max_levels: int
 
-func _init(pathfinder_system: PathfinderSystem, size: float = 100.0):
+func _init(pathfinder_system: PathfinderSystem, size: float = 100.0, max_objs: int = 10, max_lvls: int = 5):
 	system = pathfinder_system
 	sector_size = size
+	max_objects = max_objs
+	max_levels = max_lvls
 
 func add_obstacle(obstacle: PathfinderObstacle):
 	var sectors_occupied = _get_obstacle_sectors(obstacle)
 	for sector_coord in sectors_occupied:
 		if not sectors.has(sector_coord):
-			sectors[sector_coord] = []
-		if obstacle not in sectors[sector_coord]:
-			sectors[sector_coord].append(obstacle)
+			var sector_bounds = _get_sector_bounds(sector_coord)
+			sectors[sector_coord] = QuadTree.new(sector_bounds, max_objects, max_levels)
+		sectors[sector_coord].insert(obstacle)
 
 func remove_obstacle(obstacle: PathfinderObstacle):
-	for sector_coord in sectors.keys():
-		sectors[sector_coord].erase(obstacle)
-		if sectors[sector_coord].is_empty():
-			sectors.erase(sector_coord)
+	# Rebuild affected sectors (simpler than complex removal)
+	var sectors_occupied = _get_obstacle_sectors(obstacle)
+	for sector_coord in sectors_occupied:
+		if sectors.has(sector_coord):
+			_rebuild_sector(sector_coord)
 
 func update_obstacle(obstacle: PathfinderObstacle):
 	remove_obstacle(obstacle)
@@ -31,6 +37,7 @@ func update_obstacle(obstacle: PathfinderObstacle):
 func get_obstacles_in_region(min_pos: Vector2, max_pos: Vector2) -> Array[PathfinderObstacle]:
 	var result: Array[PathfinderObstacle] = []
 	var visited: Dictionary = {}
+	var query_bounds = Rect2(min_pos, max_pos - min_pos)
 	
 	var min_sector = _world_to_sector(min_pos)
 	var max_sector = _world_to_sector(max_pos)
@@ -39,7 +46,8 @@ func get_obstacles_in_region(min_pos: Vector2, max_pos: Vector2) -> Array[Pathfi
 		for y in range(min_sector.y, max_sector.y + 1):
 			var sector_coord = Vector2i(x, y)
 			if sectors.has(sector_coord):
-				for obstacle in sectors[sector_coord]:
+				var sector_obstacles = sectors[sector_coord].get_obstacles_in_bounds(query_bounds)  # CHANGE THIS
+				for obstacle in sector_obstacles:
 					if not visited.has(obstacle):
 						visited[obstacle] = true
 						result.append(obstacle)
@@ -72,3 +80,21 @@ func _world_to_sector(world_pos: Vector2) -> Vector2i:
 		int(floor(world_pos.x / sector_size)),
 		int(floor(world_pos.y / sector_size))
 	)
+
+func _get_sector_bounds(sector_coord: Vector2i) -> Rect2:
+	var x = sector_coord.x * sector_size
+	var y = sector_coord.y * sector_size
+	return Rect2(x, y, sector_size, sector_size)
+
+func _rebuild_sector(sector_coord: Vector2i):
+	if not sectors.has(sector_coord):
+		return
+	
+	var sector_bounds = _get_sector_bounds(sector_coord)
+	sectors[sector_coord].clear()
+	
+	# Re-add all obstacles in this sector
+	for obstacle in system.obstacles:
+		var obstacle_sectors = _get_obstacle_sectors(obstacle)
+		if sector_coord in obstacle_sectors:
+			sectors[sector_coord].insert(obstacle)	

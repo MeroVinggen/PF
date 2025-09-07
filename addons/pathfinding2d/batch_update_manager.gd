@@ -7,10 +7,11 @@ signal batch_processed()
 var system: PathfinderSystem
 var pending_updates: Dictionary = {}
 var frame_timer: float = 0.0
-var update_interval: float = 1.0 / 60.0  # 60fps batching
+var update_interval: float
 
-func _init(pathfinder_system: PathfinderSystem):
+func _init(pathfinder_system: PathfinderSystem, update_fps: int):
 	system = pathfinder_system
+	update_interval = 1.0 / update_fps
 
 func queue_obstacle_update(obstacle: PathfinderObstacle, update_type: String):
 	if not pending_updates.has(obstacle):

@@ -24,6 +24,18 @@ class_name PathfinderSystem
 @export var array_pool_allow_expand: bool = true
 @export var array_pool_expand_step: int = 10
 
+@export_group("Spatial Partitioning")
+## Smaller = more precise spatial filtering = better performance, but takes more memory. (Restart required)
+@export var sector_size_multiplier: float = 4.0
+## Objects per QuadTree node before splitting. Lower = faster queries, more memory. (Restart required)
+@export var quadtree_max_objects: int = 10
+## Maximum QuadTree subdivision depth. Higher = faster queries in dense areas. (Restart required)
+@export var quadtree_max_levels: int = 5
+
+@export_group("Batch Update Settings")
+## Frame rate for processing batched updates. Higher = more responsive to obstacle changes but uses more CPU. Lower = less responsive but better performance. Only if obstacles move very fast and you need instant path reactions. For most games, even 30fps batching is perfectly fine. (Restart required)
+@export var batch_update_fps: int = 30
+
 @onready var shared_validator: PathValidator = PathValidator.new(self)
 
 var spatial_partition: SpatialPartition
@@ -43,13 +55,13 @@ func _ready():
 	grid_manager = GridManager.new(self)
 	obstacle_manager = ObstacleManager.new(self)
 	astar_pathfinding = AStarPathfinding.new(self, path_node_pool, vector2_array_pool)
-	batch_manager = BatchUpdateManager.new(self)
-	spatial_partition = SpatialPartition.new(self, grid_size * 4)  # 4x grid size sectors
+	batch_manager = BatchUpdateManager.new(self, batch_update_fps)
+	spatial_partition = SpatialPartition.new(self, grid_size * sector_size_multiplier, quadtree_max_objects, quadtree_max_levels)
 	
 	if not Engine.is_editor_hint():
 		_initialize_system()
 
-func _process(delta: float):
+func _physics_process(delta: float) -> void:
 	if not Engine.is_editor_hint():
 		batch_manager.process_frame(delta)
 

@@ -25,7 +25,7 @@ func build_grid():
 				grid[pos] = _is_grid_point_clear(pos)
 
 func update_grid_for_dynamic_obstacles():
-	print("=== UPDATING GRID FOR DYNAMIC OBSTACLES ===")
+	print("DEBUG: UPDATING GRID FOR DYNAMIC OBSTACLES")
 	
 	if system.obstacle_manager.dynamic_obstacles.is_empty():
 		print("No valid dynamic obstacles - skipping grid update")
@@ -42,7 +42,6 @@ func update_grid_for_dynamic_obstacles():
 			grid[grid_pos] = _is_grid_point_clear(grid_pos)
 
 func update_grid_around_obstacle(obstacle: PathfinderObstacle):
-	"""Update grid points around a specific obstacle only"""
 	var world_poly = obstacle.get_world_polygon()
 	var obstacle_bounds = PathfindingUtils.get_polygon_bounds(world_poly)
 	
@@ -75,7 +74,6 @@ func _is_grid_point_clear(pos: Vector2) -> bool:
 	return true
 
 func _get_dynamic_obstacles_bounds_cached(valid_dynamic: Array[PathfinderObstacle]) -> Rect2:
-	"""Get bounds using already-filtered valid dynamic obstacles"""
 	if valid_dynamic.is_empty():
 		return Rect2()
 	

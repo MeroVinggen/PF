@@ -103,7 +103,7 @@ func _on_obstacle_static_changed(obstacle: PathfinderObstacle):
 		_process_batched_static_changes()
 
 func _on_obstacle_changed():
-	print("=== OBSTACLE CHANGED EVENT ===")
+	print("DEBUG: OBSTACLE CHANGED EVENT")
 	
 	# Immediate path invalidation - don't defer this
 	for pathfinder in system.pathfinders:

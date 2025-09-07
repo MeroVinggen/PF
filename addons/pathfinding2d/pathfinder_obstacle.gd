@@ -15,6 +15,7 @@ signal obstacle_changed()
 @export var is_static: bool = true : set = _set_is_static
 @export var disabled: bool = false : set = _set_disabled
 @export_flags_2d_physics var layer: int = 1
+@export var update_frequency: float = 30.0 : set = _set_update_frequency
 
 var system: PathfinderSystem
 var last_position: Vector2
@@ -23,6 +24,13 @@ var last_transform: Transform2D
 
 var pos_threshold: float
 var rot_threshold: float
+
+var update_timer: float = 0.0
+var update_interval: float
+
+func _set_update_frequency(value: float):
+	update_frequency = max(0.0, value)
+	update_interval = 1.0 / update_frequency
 
 func _set_is_static(value: bool):
 	if is_static != value:
@@ -34,11 +42,17 @@ func _set_disabled(value: bool):
 		disabled = value
 		static_state_changed.emit(self)
 
+func _ready():
+	update_interval = 1.0 / update_frequency
+
 func _physics_process(delta):
-	if Engine.is_editor_hint() or is_static or disabled:
+	if Engine.is_editor_hint() or is_static or disabled or update_frequency == 0:
 		return
 	
-	_check_for_changes()
+	update_timer += delta
+	if update_timer >= update_interval:
+		update_timer = 0.0
+		_check_for_changes()
 
 func _exit_tree():
 	if system:

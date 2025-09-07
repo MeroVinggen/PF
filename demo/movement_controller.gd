@@ -8,7 +8,8 @@ signal agent_unstuck()
 
 @export var movement_speed: float = 200.0
 @export var rotation_speed: float = 5.0
-@export var arrival_distance: float = 8.0
+# inc will cause pathfinder position shift from drawn path
+@export var arrival_distance: float = 1.0
 
 # Stuck prevention settings
 @export var stuck_threshold: float = 2.0
@@ -67,6 +68,8 @@ func _follow_path(delta):
 		movement = direction * distance_to_target
 	
 	target_node.global_position += movement
+	
+	#print("Agent pos: ", target_node.global_position, " Path point: ", current_target, " Distance: ", distance_to_target)
 	
 	# Rotate towards movement direction
 	if direction.length() > 0.1:

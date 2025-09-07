@@ -178,3 +178,9 @@ func is_path_valid() -> bool:
 func recalculate_path():
 	if is_moving:
 		_recalculate_or_find_alternative()
+
+func stop_movement():
+	is_moving = false
+	current_path.clear()
+	path_index = 0
+	target_position = Vector2.ZERO

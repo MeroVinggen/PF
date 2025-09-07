@@ -35,6 +35,7 @@ func _process_batch():
 	
 	var grid_needs_update = false
 	var paths_need_recalc = false
+	var obstacles_to_update: Array[PathfinderObstacle] = []
 	
 	# Process obstacle updates
 	for item in pending_updates:
@@ -47,6 +48,7 @@ func _process_batch():
 				grid_needs_update = true
 			
 			if updates.has("position_changed"):
+				obstacles_to_update.append(obstacle)
 				grid_needs_update = true
 				paths_need_recalc = true
 		
@@ -54,6 +56,9 @@ func _process_batch():
 			grid_needs_update = true
 		elif item == "path_recalc":
 			paths_need_recalc = true
+	
+	for obstacle in obstacles_to_update:
+		system.spatial_partition.update_obstacle(obstacle)
 	
 	# Batch execute updates
 	if grid_needs_update:

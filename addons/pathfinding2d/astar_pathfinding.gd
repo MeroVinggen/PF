@@ -75,14 +75,39 @@ func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: f
 	var distance = start.distance_to(end)
 	var samples = max(int(distance / (system.grid_size * PathfindingConstants.SAMPLE_DISTANCE_FACTOR)), PathfindingConstants.MIN_PATH_SAMPLES)
 	
+	var path_bounds_min = Vector2(min(start.x, end.x), min(start.y, end.y)) - Vector2(radius + buffer, radius + buffer)
+	var path_bounds_max = Vector2(max(start.x, end.x), max(start.y, end.y)) + Vector2(radius + buffer, radius + buffer)
+	var path_obstacles = system.spatial_partition.get_obstacles_in_region(path_bounds_min, path_bounds_max)
+	
 	for i in samples + 1:
 		var t = float(i) / float(samples)
 		var test_pos = start.lerp(end, t)
 		
-		if _is_circle_position_unsafe(test_pos, radius, buffer):
+		if _is_position_unsafe_with_obstacles(test_pos, radius, buffer, path_obstacles):
 			return false
 	
 	return true
+
+func _is_position_unsafe_with_obstacles(pos: Vector2, radius: float, buffer: float, obstacles: Array[PathfinderObstacle]) -> bool:
+	var total_radius = radius + buffer
+	
+	if not PathfindingUtils.is_point_in_polygon(pos, system.bounds_polygon):
+		return true
+	
+	for obstacle in obstacles:
+		if obstacle.disabled:
+			continue
+		if not ((obstacle.layer & system.current_pathfinder_mask) != 0):
+			continue
+		var world_poly = obstacle.get_world_polygon()
+		if world_poly.is_empty():
+			continue
+			
+		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
+		if distance_to_obstacle < (total_radius - PathfindingConstants.SAFETY_MARGIN):
+			return true
+	
+	return false
 
 func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> bool:
 	var total_radius = radius + buffer

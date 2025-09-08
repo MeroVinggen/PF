@@ -21,6 +21,7 @@ var target_position: Vector2
 var path_index: int = 0
 var is_moving: bool = false
 
+var pending_pathfinding_request: bool = false
 var consecutive_failed_recalcs: int = 0
 
 func _exit_tree():
@@ -88,6 +89,9 @@ func find_path_to(destination: Vector2) -> bool:
 		push_error("pathfinding system should be set for pathfinder")
 		return false
 	
+	if pending_pathfinding_request:
+		return false  # Already have a request pending
+	
 	# If destination is unsafe, find closest safe point
 	var safe_destination = destination
 	if validator.is_circle_position_unsafe(destination, agent_radius, agent_buffer):
@@ -101,20 +105,9 @@ func find_path_to(destination: Vector2) -> bool:
 		
 		print("Redirected to safe point: ", safe_destination, " (distance: ", destination.distance_to(safe_destination), ")")
 	
-	var path = system.find_path_for_circle(global_position, safe_destination, agent_radius, agent_buffer, mask)
-	
-	if path.is_empty():
-		path_blocked.emit()
-		return false
-	
-	current_path = path
 	target_position = safe_destination
-	path_index = 0
-	is_moving = true
-	
-	consecutive_failed_recalcs = 0
-	
-	path_found.emit(current_path)
+	pending_pathfinding_request = true
+	system.request_queue.queue_request(self, global_position, safe_destination, agent_radius, agent_buffer, mask)
 	return true
 
 func move_to(destination: Vector2) -> bool:
@@ -184,3 +177,16 @@ func stop_movement():
 	current_path.clear()
 	path_index = 0
 	target_position = Vector2.ZERO
+
+func _on_queued_path_result(path: PackedVector2Array):
+	pending_pathfinding_request = false
+	
+	if path.is_empty():
+		path_blocked.emit()
+		return
+	
+	current_path = path
+	path_index = 0
+	is_moving = true
+	consecutive_failed_recalcs = 0
+	path_found.emit(current_path)

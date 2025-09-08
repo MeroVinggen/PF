@@ -55,5 +55,5 @@ func _on_obstacle_static_changed(obstacle: PathfinderObstacle):
 
 func _on_obstacle_changed(obstacle: PathfinderObstacle):
 	system.spatial_partition.update_obstacle(obstacle)
-	system.batch_manager.queue_obstacle_update(null, "position_changed")
+	system.batch_manager.queue_obstacle_update(obstacle, "position_changed")
 	system.batch_manager.queue_path_recalculation()

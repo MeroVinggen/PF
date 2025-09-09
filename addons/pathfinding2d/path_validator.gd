@@ -42,7 +42,7 @@ func is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> bo
 		if world_poly.is_empty():
 			continue
 			
-		var distance_to_obstacle = system.astar_pathfinding._distance_point_to_polygon(pos, world_poly)
+		var distance_to_obstacle = system.astar_pathfinding._distance_point_to_polygon(pos, world_poly, total_radius)
 		if distance_to_obstacle < (total_radius - PathfindingConstants.SAFETY_MARGIN):
 			return true
 	
@@ -83,7 +83,7 @@ func _is_position_unsafe_with_obstacles(pos: Vector2, radius: float, buffer: flo
 		if world_poly.is_empty():
 			continue
 			
-		var distance_to_obstacle = system.astar_pathfinding._distance_point_to_polygon(pos, world_poly)
+		var distance_to_obstacle = system.astar_pathfinding._distance_point_to_polygon(pos, world_poly, total_radius)
 		if distance_to_obstacle < (total_radius - PathfindingConstants.SAFETY_MARGIN):
 			return true
 	

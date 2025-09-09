@@ -102,7 +102,7 @@ func _is_position_unsafe_with_obstacles(pos: Vector2, radius: float, buffer: flo
 		if world_poly.is_empty():
 			continue
 			
-		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
+		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly, total_radius)
 		if distance_to_obstacle < (total_radius - PathfindingConstants.SAFETY_MARGIN):
 			return true
 	
@@ -125,7 +125,7 @@ func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> b
 		if world_poly.is_empty():
 			continue
 			
-		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly)
+		var distance_to_obstacle = _distance_point_to_polygon(pos, world_poly, total_radius)
 		if distance_to_obstacle < (total_radius - PathfindingConstants.SAFETY_MARGIN):
 			return true
 	
@@ -337,9 +337,14 @@ func _reconstruct_path(came_from_dict: Dictionary, current: Vector2, start: Vect
 	path.reverse()
 	return path
 
-func _distance_point_to_polygon(point: Vector2, polygon: PackedVector2Array) -> float:
+func _distance_point_to_polygon(point: Vector2, polygon: PackedVector2Array, radius: float) -> float:
 	if polygon.is_empty():
 		return INF
+	
+	var bounds = PathfindingUtils.get_polygon_bounds(polygon)
+	bounds = bounds.grow(-radius)  # Shrink by agent size
+	if bounds.has_point(point):
+		return 0.0  # Definitely inside, skip expensive checks
 	
 	if PathfindingUtils.is_point_in_polygon(point, polygon):
 		return 0.0

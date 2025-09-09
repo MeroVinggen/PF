@@ -24,6 +24,15 @@ var is_moving: bool = false
 var pending_pathfinding_request: bool = false
 var consecutive_failed_recalcs: int = 0
 
+var last_spatial_position: Vector2 = Vector2.INF
+var spatial_update_threshold: float = 20.0 
+
+func _physics_process(delta: float):
+	# Check if agent moved enough to warrant spatial partition update
+	if last_spatial_position.distance_to(global_position) > spatial_update_threshold:
+		system.spatial_partition.update_agent(self)
+		last_spatial_position = global_position
+
 func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)
@@ -150,6 +159,11 @@ func _on_destination_reached():
 	path_index = 0
 	consecutive_failed_recalcs = 0
 	destination_reached.emit()
+	
+	# Update spatial partition since we stopped moving
+	if system:
+		system.spatial_partition.update_agent(self)
+		last_spatial_position = global_position
 
 func get_current_path() -> PackedVector2Array:
 	return current_path
@@ -167,9 +181,13 @@ func stop_movement():
 	is_moving = false
 	current_path.clear()
 	system.array_pool.return_packedVector2_array(current_path)
-	
 	path_index = 0
 	target_position = Vector2.ZERO
+	
+	# Update spatial partition
+	if system:
+		system.spatial_partition.update_agent(self)
+		last_spatial_position = global_position
 
 func _on_queued_path_result(path: PackedVector2Array):
 	pending_pathfinding_request = false
@@ -183,3 +201,8 @@ func _on_queued_path_result(path: PackedVector2Array):
 	is_moving = true
 	consecutive_failed_recalcs = 0
 	path_found.emit(current_path)
+	
+	# Update spatial partition since we're starting to move
+	if system:
+		system.spatial_partition.update_agent(self)
+		last_spatial_position = global_position

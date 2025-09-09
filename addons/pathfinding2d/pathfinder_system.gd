@@ -108,10 +108,12 @@ func register_pathfinder(pathfinder: PathfinderAgent):
 func _prepare_registered_pathfinder(pathfinder: PathfinderAgent):
 	pathfinder.system = self
 	pathfinder.validator = shared_validator
+	spatial_partition.add_agent(pathfinder)
 
 func unregister_pathfinder(pathfinder: PathfinderAgent):
 	pathfinders.erase(pathfinder)
 	pathfinder.system = null
+	spatial_partition.remove_agent(pathfinder)
 
 func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = 2.0, mask: int = 1) -> PackedVector2Array:
 	current_pathfinder_mask = mask

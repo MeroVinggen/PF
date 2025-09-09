@@ -47,6 +47,7 @@ func _recalculate_or_find_alternative():
 		_pause_and_retry()
 		return
 	
+	system.array_pool.return_packedVector2_array(current_path)
 	var path = system.find_path_for_circle(global_position, target_position, agent_radius, mask)
 	
 	if path.is_empty():
@@ -56,6 +57,7 @@ func _recalculate_or_find_alternative():
 			var offset = Vector2(cos(angle), sin(angle)) * (agent_radius * PathfindingConstants.ALTERNATIVE_POSITION_RADIUS_MULTIPLIER)
 			var test_pos = target_position + offset
 			if _is_point_in_bounds(test_pos) and not validator.is_circle_position_unsafe(test_pos, agent_radius, agent_buffer):
+				system.array_pool.return_packedVector2_array(current_path)
 				path = system.find_path_for_circle(global_position, test_pos, agent_radius, mask)
 				if not path.is_empty():
 					target_position = test_pos
@@ -161,6 +163,7 @@ func get_remaining_distance() -> float:
 func _on_destination_reached():
 	is_moving = false
 	current_path.clear()
+	system.array_pool.return_packedVector2_array(current_path)
 	path_index = 0
 	consecutive_failed_recalcs = 0
 	destination_reached.emit()
@@ -180,6 +183,8 @@ func recalculate_path():
 func stop_movement():
 	is_moving = false
 	current_path.clear()
+	system.array_pool.return_packedVector2_array(current_path)
+	
 	path_index = 0
 	target_position = Vector2.ZERO
 

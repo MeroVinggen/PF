@@ -2,6 +2,7 @@
 extends RefCounted
 class_name QuadTree
 
+var system: PathfinderSystem
 var bounds: Rect2
 var max_objects: int
 var max_levels: int
@@ -10,7 +11,8 @@ var level: int
 var objects: Array[PathfinderObstacle] = []
 var nodes: Array[QuadTree] = []
 
-func _init(boundary: Rect2, max_objs: int = 10, max_lvls: int = 5, lvl: int = 0):
+func _init(systemRef: PathfinderSystem, boundary: Rect2, max_objs: int = 10, max_lvls: int = 5, lvl: int = 0):
+	system = systemRef
 	bounds = boundary
 	max_objects = max_objs
 	max_levels = max_lvls
@@ -30,10 +32,10 @@ func split():
 	var y = bounds.position.y
 	
 	nodes.resize(4)
-	nodes[0] = QuadTree.new(Rect2(x + sub_width, y, sub_width, sub_height), max_objects, max_levels, level + 1)
-	nodes[1] = QuadTree.new(Rect2(x, y, sub_width, sub_height), max_objects, max_levels, level + 1)
-	nodes[2] = QuadTree.new(Rect2(x, y + sub_height, sub_width, sub_height), max_objects, max_levels, level + 1)
-	nodes[3] = QuadTree.new(Rect2(x + sub_width, y + sub_height, sub_width, sub_height), max_objects, max_levels, level + 1)
+	nodes[0] = QuadTree.new(system, Rect2(x + sub_width, y, sub_width, sub_height), max_objects, max_levels, level + 1)
+	nodes[1] = QuadTree.new(system, Rect2(x, y, sub_width, sub_height), max_objects, max_levels, level + 1)
+	nodes[2] = QuadTree.new(system, Rect2(x, y + sub_height, sub_width, sub_height), max_objects, max_levels, level + 1)
+	nodes[3] = QuadTree.new(system, Rect2(x + sub_width, y + sub_height, sub_width, sub_height), max_objects, max_levels, level + 1)
 
 func get_index(obstacle_bounds: Rect2) -> int:
 	var index = -1
@@ -89,6 +91,7 @@ func retrieve(return_objects: Array[PathfinderObstacle], bounds_to_check: Rect2)
 	return_objects.append_array(objects)
 
 func get_obstacles_in_bounds(query_bounds: Rect2) -> Array[PathfinderObstacle]:
-	var result: Array[PathfinderObstacle] = []
+	# will be returned to pool in place of usage
+	var result: Array[PathfinderObstacle] = system.array_pool.get_obstacle_array()
 	retrieve(result, query_bounds)
 	return result

@@ -20,7 +20,7 @@ func add_obstacle(obstacle: PathfinderObstacle):
 	for sector_coord in sectors_occupied:
 		if not sectors.has(sector_coord):
 			var sector_bounds = _get_sector_bounds(sector_coord)
-			sectors[sector_coord] = QuadTree.new(sector_bounds, max_objects, max_levels)
+			sectors[sector_coord] = QuadTree.new(system, sector_bounds, max_objects, max_levels)
 		sectors[sector_coord].insert(obstacle)
 
 func remove_obstacle(obstacle: PathfinderObstacle):
@@ -35,7 +35,8 @@ func update_obstacle(obstacle: PathfinderObstacle):
 	add_obstacle(obstacle)
 
 func get_obstacles_in_region(min_pos: Vector2, max_pos: Vector2) -> Array[PathfinderObstacle]:
-	var result: Array[PathfinderObstacle] = []
+	# will be released in usage places
+	var result: Array[PathfinderObstacle] = system.array_pool.get_obstacle_array()
 	var visited: Dictionary = {}
 	var query_bounds = Rect2(min_pos, max_pos - min_pos)
 	
@@ -46,11 +47,12 @@ func get_obstacles_in_region(min_pos: Vector2, max_pos: Vector2) -> Array[Pathfi
 		for y in range(min_sector.y, max_sector.y + 1):
 			var sector_coord = Vector2i(x, y)
 			if sectors.has(sector_coord):
-				var sector_obstacles = sectors[sector_coord].get_obstacles_in_bounds(query_bounds)  # CHANGE THIS
+				var sector_obstacles = sectors[sector_coord].get_obstacles_in_bounds(query_bounds)
 				for obstacle in sector_obstacles:
 					if not visited.has(obstacle):
 						visited[obstacle] = true
 						result.append(obstacle)
+				system.array_pool.return_obstacles_array(sector_obstacles)
 	
 	return result
 

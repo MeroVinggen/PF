@@ -10,12 +10,10 @@ var closed_set: Dictionary = {}
 var came_from: Dictionary = {}
 
 var pool: PathNodePool
-var array_pool: GenericArrayPool
 
-func _init(pathfinder_system: PathfinderSystem, node_pool: PathNodePool, arr_pool: GenericArrayPool):
+func _init(pathfinder_system: PathfinderSystem, node_pool: PathNodePool):
 	system = pathfinder_system
 	pool = node_pool
-	array_pool = arr_pool
 
 func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = PathfindingConstants.SAFETY_MARGIN) -> PackedVector2Array:
 	print("=== PATHFINDING REQUEST ===")
@@ -60,7 +58,6 @@ func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: f
 	return path
 
 func _cleanup_path_nodes():
-	"""Return all used PathNodes and arrays back to pools"""
 	var all_nodes: Array[PathNode] = []
 	all_nodes.append_array(open_set)
 	
@@ -84,8 +81,10 @@ func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: f
 		var test_pos = start.lerp(end, t)
 		
 		if _is_position_unsafe_with_obstacles(test_pos, radius, buffer, path_obstacles):
+			system.array_pool.return_obstacles_array(path_obstacles)
 			return false
 	
+	system.array_pool.return_obstacles_array(path_obstacles)
 	return true
 
 func _is_position_unsafe_with_obstacles(pos: Vector2, radius: float, buffer: float, obstacles: Array[PathfinderObstacle]) -> bool:
@@ -254,7 +253,7 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 		if valid_neighbors == 0:
 			print("DEBUG: No valid neighbors from ", current.position, " - unsafe:", unsafe_neighbors, " blocked:", path_blocked_neighbors, " total_neighbors:", neighbors.size())
 		
-		array_pool.return_vector2_array(neighbors)
+		system.array_pool.return_vector2_array(neighbors)
 		
 	# Debug why A* failed
 	if open_set.is_empty():
@@ -262,11 +261,12 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, radius: float, buffe
 	else:
 		print("DEBUG: A* failed - max iterations reached (", iterations, ")")
 	
-	return PackedVector2Array()
+	# will be returned to pool in agent
+	return system.array_pool.get_packedVector2_array()
 
 func _get_adaptive_neighbors(pos: Vector2, radius: float, buffer: float) -> Array[Vector2]:
 	# cleanup will happen in caller func
-	var neighbors: Array[Vector2] = array_pool.get_vector2_array()
+	var neighbors: Array[Vector2] = system.array_pool.get_vector2_array()
 	
 	# Use smaller steps for larger agents to find more precise paths
 	var step_size = system.grid_size
@@ -302,7 +302,8 @@ func _smooth_circle_path(path: PackedVector2Array, radius: float, buffer: float)
 	if path.size() <= 2:
 		return path
 	
-	var smoothed: PackedVector2Array = []
+	# will be returned to pool in pathfinding_agent
+	var smoothed: PackedVector2Array = system.array_pool.get_packedVector2_array()
 	smoothed.append(path[0])
 	
 	var current_index = 0
@@ -325,7 +326,8 @@ func _heuristic(pos: Vector2, goal: Vector2) -> float:
 	return pos.distance_to(goal)
 
 func _reconstruct_path(came_from_dict: Dictionary, current: Vector2, start: Vector2) -> PackedVector2Array:
-	var path: PackedVector2Array = []
+	# will be returned to pool in agent
+	var path: PackedVector2Array = system.array_pool.get_packedVector2_array()
 	path.append(current)
 	
 	while came_from_dict.has(current) and current != start:

@@ -62,8 +62,10 @@ func is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: fl
 		var test_pos = start.lerp(end, t)
 		
 		if _is_position_unsafe_with_obstacles(test_pos, radius, buffer, path_obstacles):
+			system.array_pool.return_obstacles_array(path_obstacles)
 			return false
 	
+	system.array_pool.return_obstacles_array(path_obstacles)
 	return true
 
 func _is_position_unsafe_with_obstacles(pos: Vector2, radius: float, buffer: float, obstacles: Array[PathfinderObstacle]) -> bool:

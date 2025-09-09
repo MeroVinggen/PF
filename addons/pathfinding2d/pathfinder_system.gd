@@ -43,7 +43,7 @@ var grid_manager: GridManager
 var obstacle_manager: ObstacleManager
 var astar_pathfinding: AStarPathfinding
 var path_node_pool: PathNodePool
-var vector2_array_pool: GenericArrayPool
+var array_pool: GenericArrayPool
 var batch_manager: BatchUpdateManager
 var request_queue: PathfindingRequestQueue
 
@@ -52,11 +52,11 @@ var paths_need_validation: bool = false
 
 func _ready():
 	path_node_pool = PathNodePool.new(pool_size, pool_allow_expand, pool_expand_step)
-	vector2_array_pool = GenericArrayPool.new(array_pool_size, array_pool_allow_expand, array_pool_expand_step)
+	array_pool = GenericArrayPool.new(array_pool_size, array_pool_allow_expand, array_pool_expand_step)
 	
 	grid_manager = GridManager.new(self)
 	obstacle_manager = ObstacleManager.new(self)
-	astar_pathfinding = AStarPathfinding.new(self, path_node_pool, vector2_array_pool)
+	astar_pathfinding = AStarPathfinding.new(self, path_node_pool)
 	batch_manager = BatchUpdateManager.new(self, batch_update_fps)
 	spatial_partition = SpatialPartition.new(self, grid_size * sector_size_multiplier, quadtree_max_objects, quadtree_max_levels)
 	request_queue = PathfindingRequestQueue.new(self, 3, 5.0)
@@ -144,7 +144,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 	print("Point is inside ", containing_obstacles.size(), " obstacle(s)")
 	
 	# For each containing obstacle, find multiple candidate points
-	var candidates: Array[Vector2] = vector2_array_pool.get_vector2_array()
+	var candidates: Array[Vector2] = array_pool.get_vector2_array()
 	
 	for obstacle in containing_obstacles:
 		var safe_pos = _find_closest_point_outside_obstacle(unsafe_pos, obstacle, radius, buffer)
@@ -176,7 +176,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 				best_candidate = candidate
 		
 		print("Selected best candidate at distance: ", best_distance)
-		vector2_array_pool.return_vector2_array(candidates)
+		array_pool.return_vector2_array(candidates)
 		return best_candidate
 	
 	# Fallback: search in expanding circles with larger steps
@@ -195,11 +195,11 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 			if PathfindingUtils.is_point_in_polygon(test_pos, bounds_polygon) and \
 			   not _is_circle_position_unsafe(test_pos, radius, buffer):
 				print("Fallback found safe point at: ", test_pos)
-				vector2_array_pool.return_vector2_array(candidates)
+				array_pool.return_vector2_array(candidates)
 				return test_pos
 	
 	print("Could not find any safe point!")
-	vector2_array_pool.return_vector2_array(candidates)
+	array_pool.return_vector2_array(candidates)
 	return Vector2.INF
 
 func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderObstacle, radius: float, buffer: float) -> Vector2:

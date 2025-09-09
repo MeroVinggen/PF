@@ -1,0 +1,62 @@
+[gd_scene load_steps=4 format=3 uid="uid://d1ph44qxoxu2q"]
+
+[ext_resource type="Script" uid="uid://c12m37pylrqeu" path="res://performanceTest/performance_test.gd" id="1_uejj4"]
+[ext_resource type="Script" uid="uid://iy0w45a50gju" path="res://addons/pathfinding2d/pathfinder_system.gd" id="2_v0r0a"]
+[ext_resource type="Script" uid="uid://dq8my7tks08qu" path="res://addons/pathfinding2d/pathfinder_debug_renderer.gd" id="3_yjtch"]
+
+[node name="PerformanceTest" type="Node2D"]
+script = ExtResource("1_uejj4")
+entities_scale = 0.3
+agents_amount = 50
+static_obstacles_amount = 40
+dynamic_obstacles_amount = 40
+
+[node name="PathfinderSystem" type="Node2D" parent="."]
+script = ExtResource("2_v0r0a")
+bounds_polygon = PackedVector2Array(-500, -500, 500, -500, 500, 500, -500, 500)
+metadata/_custom_type_script = "uid://iy0w45a50gju"
+
+[node name="PathfindingDebugRenderer" type="Node2D" parent="."]
+script = ExtResource("3_yjtch")
+metadata/_custom_type_script = "uid://dq8my7tks08qu"
+
+[node name="UIContainer" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="VBoxContainer" type="HBoxContainer" parent="UIContainer"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 388.0
+offset_right = 739.0
+offset_bottom = 43.0
+grow_horizontal = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="restart" type="Button" parent="UIContainer/VBoxContainer"]
+layout_mode = 2
+text = "restart"
+
+[node name="stop_agents" type="Button" parent="UIContainer/VBoxContainer"]
+layout_mode = 2
+text = "stop_agents"
+
+[node name="spawn_targets_btn" type="Button" parent="UIContainer/VBoxContainer"]
+layout_mode = 2
+text = "spawn_targets"
+
+[node name="move_dynamic_btn" type="Button" parent="UIContainer/VBoxContainer"]
+layout_mode = 2
+text = "move_dynamic"
+
+[node name="FPSLabel" type="Label" parent="UIContainer/VBoxContainer"]
+layout_mode = 2
+text = "0"
+
+[node name="StatsLabel" type="Label" parent="UIContainer/VBoxContainer"]
+layout_mode = 2
+text = "null"

@@ -114,6 +114,11 @@ func move_to(destination: Vector2) -> bool:
 	return find_path_to(destination)
 
 func get_next_waypoint() -> Vector2:
+	if system.paths_need_validation and not is_path_valid():
+		_recalculate_or_find_alternative()
+		system.paths_need_validation = false
+		return Vector2.INF  # Let next call handle the new path
+	
 	if current_path.is_empty() or path_index >= current_path.size():
 		return Vector2.INF
 	

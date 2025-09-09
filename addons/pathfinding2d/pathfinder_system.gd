@@ -48,6 +48,7 @@ var batch_manager: BatchUpdateManager
 var request_queue: PathfindingRequestQueue
 
 var current_pathfinder_mask: int = 1
+var paths_need_validation: bool = false
 
 func _ready():
 	path_node_pool = PathNodePool.new(pool_size, pool_allow_expand, pool_expand_step)

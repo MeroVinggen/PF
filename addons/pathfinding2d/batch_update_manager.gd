@@ -83,6 +83,4 @@ func _process_static_change(obstacle: PathfinderObstacle):
 		obstacle.rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD
 
 func _recalculate_invalid_paths():
-	for pathfinder in system.pathfinders:
-		if pathfinder.is_moving and not pathfinder.is_path_valid():
-			pathfinder.recalculate_path()
+	system.paths_need_validation = true

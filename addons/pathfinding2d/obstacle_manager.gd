@@ -2,8 +2,6 @@
 extends RefCounted
 class_name ObstacleManager
 
-signal obstacles_changed()
-
 var system: PathfinderSystem
 var dynamic_obstacles: Array[PathfinderObstacle] = []
 

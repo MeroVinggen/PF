@@ -109,7 +109,6 @@ func register_pathfinder(pathfinder: PathfinderAgent):
 func _prepare_registered_pathfinder(pathfinder: PathfinderAgent):
 	pathfinder.system = self
 	pathfinder.validator = shared_validator
-	obstacle_manager.obstacles_changed.connect(pathfinder._on_obstacles_changed)
 
 func unregister_pathfinder(pathfinder: PathfinderAgent):
 	pathfinders.erase(pathfinder)

@@ -28,18 +28,6 @@ func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)
 
-func _on_obstacles_changed():
-	print("DEBUG: PathfinderAgent received obstacles_changed signal")
-	if not is_moving or current_path.is_empty() or not validator:
-		return
-	
-	# Check both current position AND path validity
-	if validator.is_circle_position_unsafe(global_position, agent_radius, agent_buffer) or \
-	   not validator.is_path_safe(current_path, global_position, path_index, agent_radius, agent_buffer):
-		path_invalidated.emit()
-		consecutive_failed_recalcs = 0
-		_recalculate_or_find_alternative()
-
 func _recalculate_or_find_alternative():
 	consecutive_failed_recalcs += 1
 	

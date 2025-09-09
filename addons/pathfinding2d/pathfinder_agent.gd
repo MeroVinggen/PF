@@ -125,15 +125,15 @@ func get_next_waypoint() -> Vector2:
 		var safe_alternative = validator.find_closest_safe_point(next_point, agent_radius, agent_buffer)
 		
 		if safe_alternative != Vector2.INF and next_point.distance_to(safe_alternative) < agent_radius * 3:
-			# Small deviation - just update this waypoint
-			current_path[path_index] = safe_alternative
-			return safe_alternative
-		else:
-			# Large deviation or no safe point - trigger full recalculation
-			_recalculate_or_find_alternative()
-			if path_index < current_path.size():
-				return current_path[path_index]
-			return Vector2.INF
+			if validator.is_safe_circle_path(global_position, safe_alternative, agent_radius, agent_buffer):
+				current_path[path_index] = safe_alternative
+				return safe_alternative
+		
+		# If no safe path to alternative OR large deviation - trigger full recalculation
+		_recalculate_or_find_alternative()
+		if path_index < current_path.size():
+			return current_path[path_index]
+		return Vector2.INF
 	
 	return next_point
 

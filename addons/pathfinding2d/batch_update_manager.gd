@@ -9,13 +9,19 @@ var pending_updates: Dictionary = {}
 var frame_timer: float = 0.0
 var update_interval: float
 
+var changed_obstacles: Array[PathfinderObstacle] = []
+
 func _init(pathfinder_system: PathfinderSystem, update_fps: int):
 	system = pathfinder_system
 	update_interval = 1.0 / update_fps
 
 func queue_obstacle_update(obstacle: PathfinderObstacle, update_type: String):
+	if obstacle not in changed_obstacles:
+		changed_obstacles.append(obstacle)
+		
 	if not pending_updates.has(obstacle):
 		pending_updates[obstacle] = {}
+	
 	pending_updates[obstacle][update_type] = true
 
 func queue_grid_update():
@@ -68,6 +74,7 @@ func _process_batch():
 	if paths_need_recalc:
 		_recalculate_invalid_paths()
 	
+	changed_obstacles.clear()
 	pending_updates.clear()
 	batch_processed.emit()
 
@@ -83,4 +90,24 @@ func _process_static_change(obstacle: PathfinderObstacle):
 		obstacle.rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD
 
 func _recalculate_invalid_paths():
-	system.paths_need_validation = true
+	for pathfinder in system.pathfinders:
+		if _agent_affected_by_recent_changes(pathfinder):
+			pathfinder._recalculate_or_find_alternative()
+
+func _agent_affected_by_recent_changes(agent: PathfinderAgent) -> bool:
+	for obstacle in changed_obstacles:
+		# Layer filtering
+		if (agent.mask & obstacle.layer) == 0:
+			continue
+		
+		# Spatial filtering - check if agent is near obstacle
+		var influence_radius = _get_obstacle_max_radius(obstacle) + agent.agent_radius + agent.agent_buffer + system.grid_size + 10
+		if agent.global_position.distance_to(obstacle.global_position) <= influence_radius:
+			return true
+	
+	return false
+
+func _get_obstacle_max_radius(obstacle: PathfinderObstacle) -> float:
+	if obstacle.cached_max_radius < 0:
+		obstacle._update_max_radius_cache()
+	return obstacle.cached_max_radius

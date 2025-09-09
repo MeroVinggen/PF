@@ -27,6 +27,7 @@ var rot_threshold: float
 
 var update_timer: float = 0.0
 var update_interval: float
+var cached_max_radius: float = -1.0
 
 func _set_update_frequency(value: float):
 	update_frequency = max(0.0, value)
@@ -94,10 +95,10 @@ func _check_for_changes():
 		last_position = global_position  # Update position for next frame
 
 func _store_last_state():
-	"""Store current state for change detection"""
 	# Don't update last_position immediately, let it be updated next frame
 	last_polygon = obstacle_polygon.duplicate()
 	last_transform = global_transform
+	_update_max_radius_cache()
 
 func get_world_polygon() -> PackedVector2Array:
 	var world_poly: PackedVector2Array = []
@@ -108,3 +109,8 @@ func get_world_polygon() -> PackedVector2Array:
 func is_point_inside(point: Vector2) -> bool:
 	var local_point = global_transform.affine_inverse() * point
 	return PathfindingUtils.is_point_in_polygon(local_point, obstacle_polygon)
+
+func _update_max_radius_cache():
+	cached_max_radius = 0.0
+	for point in obstacle_polygon:
+		cached_max_radius = max(cached_max_radius, point.length())

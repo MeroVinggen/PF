@@ -12,6 +12,7 @@ class_name PathfindingDebugRenderer
 @export var draw_systems: bool = true
 @export var draw_obstacles: bool = true
 @export var draw_pathfinders: bool = true
+@export var draw_pathfinders_path: bool = true
 @export var draw_grid: bool = false
 @export var grid_sample_rate: int = 10
 @export var draw_fps: float = 30.0 :
@@ -174,6 +175,10 @@ func _batch_pathfinders():
 			color = Color.PURPLE
 		batched_circles.append([pos, pathfinder.agent_radius, color])
 		
+		if draw_pathfinders_path:
+			_batch_pathfinders_path(pathfinder)
+
+func _batch_pathfinders_path(pathfinder):
 		# Batch path lines
 		var path = pathfinder.get_current_path()
 		if path.size() > 1:

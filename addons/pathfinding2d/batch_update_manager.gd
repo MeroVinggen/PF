@@ -90,24 +90,12 @@ func _process_static_change(obstacle: PathfinderObstacle):
 		obstacle.rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD
 
 func _recalculate_invalid_paths():
-	var affected_agents: Dictionary = {}  # Use dictionary to avoid duplicates
+	var nearby_agents: Array[PathfinderAgent] = []
 	
 	# For each changed obstacle, find nearby agents using spatial partition
 	for obstacle in changed_obstacles:
-		var influence_radius = obstacle.cached_max_radius + system.spatial_partition.sector_size
-		var nearby_agents = system.spatial_partition.get_agents_near_obstacle(obstacle, influence_radius)
-		
-		for agent in nearby_agents:
-			# Layer filtering
-			if (agent.mask & obstacle.layer) == 0:
-				continue
-			
-			# More precise influence check
-			var precise_radius = obstacle.cached_max_radius + agent.agent_radius + agent.agent_buffer + 5
-			
-			if agent.global_position.distance_to(obstacle.global_position) <= precise_radius:
-				affected_agents[agent] = true
+		nearby_agents.append_array(system.spatial_partition.get_agents_near_obstacle(obstacle))
 	
 	# Trigger recalculation for all affected agents
-	for agent in affected_agents:
+	for agent in nearby_agents:
 		agent._recalculate_or_find_alternative()

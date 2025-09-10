@@ -116,17 +116,18 @@ func _get_sectors_in_radius(center_pos: Vector2, radius: float) -> Array[Vector2
 	
 	return result
 
-func get_agents_near_obstacle(obstacle: PathfinderObstacle, influence_radius: float) -> Array[PathfinderAgent]:
-	var obstacle_sectors = _get_sectors_in_radius(obstacle.global_position, influence_radius)
+func get_agents_near_obstacle(obstacle: PathfinderObstacle) -> Array[PathfinderAgent]:
+	var obstacle_sectors = _get_sectors_in_radius(obstacle.global_position, obstacle.cached_max_radius)
 	var result: Array[PathfinderAgent] = []
 	var visited: Dictionary = {}
 	
 	for sector_coord in obstacle_sectors:
 		if agent_sectors.has(sector_coord):
 			for agent in agent_sectors[sector_coord]:
-				if not visited.has(agent):
-					visited[agent] = true
-					result.append(agent)
+				if visited.has(agent) or (agent.mask & obstacle.layer) == 0:
+					continue
+				visited[agent] = true
+				result.append(agent)
 	
 	return result
 

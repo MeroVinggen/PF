@@ -94,9 +94,8 @@ func _recalculate_invalid_paths():
 	
 	# For each changed obstacle, find nearby agents using spatial partition
 	for obstacle in changed_obstacles:
-		var influence_radius = _get_obstacle_max_radius(obstacle) + system.grid_size  # Conservative estimate
-		
-		var nearby_agents = system.spatial_partition.get_agents_near_obstacle_fast(obstacle, influence_radius)
+		var influence_radius = obstacle.cached_max_radius + system.spatial_partition.sector_size
+		var nearby_agents = system.spatial_partition.get_agents_near_obstacle(obstacle, influence_radius)
 		
 		for agent in nearby_agents:
 			# Layer filtering
@@ -104,7 +103,7 @@ func _recalculate_invalid_paths():
 				continue
 			
 			# More precise influence check
-			var precise_radius = _get_obstacle_max_radius(obstacle) + agent.agent_radius + agent.agent_buffer + 5
+			var precise_radius = obstacle.cached_max_radius + agent.agent_radius + agent.agent_buffer + 5
 			
 			if agent.global_position.distance_to(obstacle.global_position) <= precise_radius:
 				affected_agents[agent] = true
@@ -112,8 +111,3 @@ func _recalculate_invalid_paths():
 	# Trigger recalculation for all affected agents
 	for agent in affected_agents:
 		agent._recalculate_or_find_alternative()
-
-func _get_obstacle_max_radius(obstacle: PathfinderObstacle) -> float:
-	if obstacle.cached_max_radius < 0:
-		obstacle._update_max_radius_cache()
-	return obstacle.cached_max_radius

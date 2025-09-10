@@ -116,8 +116,7 @@ func _get_sectors_in_radius(center_pos: Vector2, radius: float) -> Array[Vector2
 	
 	return result
 
-# And here's the fast version without distance checks:
-func get_agents_near_obstacle_fast(obstacle: PathfinderObstacle, influence_radius: float) -> Array[PathfinderAgent]:
+func get_agents_near_obstacle(obstacle: PathfinderObstacle, influence_radius: float) -> Array[PathfinderAgent]:
 	var obstacle_sectors = _get_sectors_in_radius(obstacle.global_position, influence_radius)
 	var result: Array[PathfinderAgent] = []
 	var visited: Dictionary = {}

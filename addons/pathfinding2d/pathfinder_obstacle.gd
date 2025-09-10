@@ -45,6 +45,7 @@ func _set_disabled(value: bool):
 
 func _ready():
 	update_interval = 1.0 / update_frequency
+	_check_for_changes()
 
 func _physics_process(delta):
 	if Engine.is_editor_hint() or is_static or disabled or update_frequency == 0:

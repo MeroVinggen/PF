@@ -58,7 +58,7 @@ func _physics_process(delta):
 
 func _exit_tree():
 	if system:
-		system.unregister_obstacle(self)
+		system.obstacle_manager.unregister_obstacle(self)
 
 func _has_changed() -> bool:
 	# pos chenged
@@ -102,7 +102,7 @@ func _store_last_state():
 	_update_max_radius_cache()
 
 func get_world_polygon() -> PackedVector2Array:
-	var world_poly: PackedVector2Array = []
+	var world_poly: PackedVector2Array = system.array_pool.get_packedVector2_array()
 	for point in obstacle_polygon:
 		world_poly.append(global_transform * point)
 	return world_poly

@@ -63,17 +63,16 @@ func _update_debug_ui():
 		info.append("Moving: " + str(pathfinder.is_moving))
 		info.append("Valid: " + str(pathfinder.is_path_valid()))
 		info.append("Failures: " + str(pathfinder.consecutive_failed_recalcs))
-		info.append("Stuck: " + str(movement_controller.is_stuck()))
+		#info.append("Stuck: " + str(movement_controller.is_stuck()))
 	
 	label.text = "\n".join(info)
 
 func _input(event):
 	if event is InputEventMouseButton and event.pressed:
+		var target = get_global_mouse_position()
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			var target = get_global_mouse_position()
 			_test_pathfinding_to(target)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			var target = get_global_mouse_position()
 			_move_dynamic_obstacle_to(target)
 	
 	elif event is InputEventKey and event.pressed:
@@ -85,7 +84,7 @@ func _test_pathfinding_to(target: Vector2):
 	print("Moving agent to: ", target)
 	
 	if pathfinder:
-		pathfinder.move_to(target)
+		pathfinder.find_path_to(target)
 	else:
 		print("ERROR: No pathfinder available")
 

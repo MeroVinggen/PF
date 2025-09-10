@@ -42,6 +42,7 @@ func update_grid_for_dynamic_obstacles():
 func update_grid_around_obstacle(obstacle: PathfinderObstacle):
 	var world_poly = obstacle.get_world_polygon()
 	var obstacle_bounds = PathfindingUtils.get_polygon_bounds(world_poly)
+	system.array_pool.return_packedVector2_array(world_poly)
 	
 	# Expand bounds for agent clearance
 	obstacle_bounds = obstacle_bounds.grow(system.grid_size * PathfindingConstants.GRID_EXPANSION_FACTOR)
@@ -84,6 +85,7 @@ func _get_dynamic_obstacles_bounds_cached(valid_dynamic: Array[PathfinderObstacl
 		for point in world_poly:
 			min_pos = min_pos.min(point)
 			max_pos = max_pos.max(point)
+		system.array_pool.return_packedVector2_array(world_poly)
 	
 	var buffer = system.grid_size * PathfindingConstants.GRID_BUFFER_FACTOR
 	return Rect2(min_pos - Vector2(buffer, buffer), (max_pos - min_pos) + Vector2(buffer * 2, buffer * 2))

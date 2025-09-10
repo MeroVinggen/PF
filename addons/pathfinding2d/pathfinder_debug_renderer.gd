@@ -47,7 +47,7 @@ var batched_obstacle_colors: Array[Color] = []
 var batched_path_lines: Array[Array] = []  # Array of [start, end, color]
 var batched_circles: Array[Array] = []     # Array of [pos, radius, color]
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	draw_timer += delta
 	if draw_timer >= draw_timer_cap:
 		draw_timer = 0.0
@@ -130,26 +130,38 @@ func _batch_obstacles():
 	var dynamic_polygons: Array[PackedVector2Array] = []
 	var dynamic_colors: Array[Color] = []
 	
-	for obstacle in obstacles_to_debug:
-		if not is_instance_valid(obstacle):
-			continue
-		
-		var world_poly = obstacle.get_world_polygon()
-		if world_poly.size() < 3:
-			continue
-		
-		var color = dynamic_obstacle_color if not obstacle.is_static else obstacle_color
-		
-		if obstacle.is_static:
-			static_polygons.append(world_poly)
-			static_colors.append(color)
-		else:
-			dynamic_polygons.append(world_poly)
-			dynamic_colors.append(color)
+	for system: PathfinderSystem in systems_to_debug:
+		for obstacle: PathfinderObstacle in system.obstacles:
+	
+	#for obstacle: PathfinderObstacle in obstacles_to_debug:
+			if not is_instance_valid(obstacle):
+				continue
 			
-			# Add dynamic indicator circle to batch
-			batched_circles.append([obstacle.global_position, 8.0, Color.YELLOW])
-			batched_circles.append([obstacle.global_position, 6.0, dynamic_obstacle_color])
+			# set system only if in editor!
+			if Engine.is_editor_hint():
+				obstacle.system = system
+			
+			var world_poly = obstacle.get_world_polygon()
+			if world_poly.size() < 3:
+				obstacle.system.array_pool.return_packedVector2_array(world_poly)
+				continue
+			
+			var color = dynamic_obstacle_color if not obstacle.is_static else obstacle_color
+			
+			if obstacle.is_static:
+				# duplicate to avoide errs, coz the arr will be cleared when returned to the pool
+				static_polygons.append(world_poly.duplicate())
+				obstacle.system.array_pool.return_packedVector2_array(world_poly)
+				static_colors.append(color)
+			else:
+				# duplicate to avoide errs, coz the arr will be cleared when returned to the pool
+				dynamic_polygons.append(world_poly.duplicate())
+				obstacle.system.array_pool.return_packedVector2_array(world_poly)
+				dynamic_colors.append(color)
+				
+				# Add dynamic indicator circle to batch
+				batched_circles.append([obstacle.global_position, 8.0, Color.YELLOW])
+				batched_circles.append([obstacle.global_position, 6.0, dynamic_obstacle_color])
 	
 	# Combine batches
 	batched_obstacle_polygons.append_array(static_polygons)

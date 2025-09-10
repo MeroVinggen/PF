@@ -7,6 +7,7 @@ var pool_allow_expand: bool
 var pool_expand_step: int
 
 var vector2_pool: Array = []
+var vector2i_pool: Array = []
 var packedVector2_pool: Array = []
 var obstacles_pool: Array = []
 var request_pool: Array = []
@@ -18,6 +19,7 @@ func _init(initial_size: int, allow_expand: bool = true, expand_step: int = 10):
 	
 	# Pre-populate all pools
 	_expand_pool(&"vector2_pool", vector2_pool, pool_size)
+	_expand_pool(&"vector2i_pool", vector2i_pool, pool_size)
 	_expand_pool(&"packedVector2_pool", packedVector2_pool, pool_size)
 	_expand_pool(&"obstacles_pool", obstacles_pool, pool_size)
 	_expand_pool(&"request_pool", request_pool, pool_size)
@@ -33,6 +35,21 @@ func get_vector2_array() -> Array[Vector2]:
 			array = []
 	else:
 		array = vector2_pool.pop_back() as Array[Vector2]
+	
+	array.clear()
+	return array
+
+func get_vector2i_array() -> Array[Vector2i]:
+	var array: Array[Vector2i]
+	
+	if vector2i_pool.is_empty():
+		if pool_allow_expand:
+			_expand_pool(&"vector2i_pool", vector2i_pool, pool_expand_step)
+			array = vector2i_pool.pop_back() as Array[Vector2i]
+		else:
+			array = []
+	else:
+		array = vector2i_pool.pop_back() as Array[Vector2i]
 	
 	array.clear()
 	return array
@@ -75,6 +92,9 @@ func get_pathfinding_request() -> PathfindingRequest:
 func return_vector2_array(array: Array[Vector2]) -> void:
 	_return_array(array, vector2_pool)
 
+func return_vector2i_array(array: Array[Vector2i]) -> void:
+	_return_array(array, vector2i_pool)
+
 func return_packedVector2_array(array: PackedVector2Array) -> void:
 	_return_array(array, packedVector2_pool)
 
@@ -86,8 +106,6 @@ func return_pathfinding_request(request: PathfindingRequest):
 	request_pool.append(request)
 
 func _return_array(array, pool: Array) -> void:
-	if array == null:
-		return
 	array.clear()
 	if pool.size() < pool_size:
 		pool.append(array)
@@ -99,6 +117,9 @@ func _expand_pool(pool_name: StringName, pool: Array, count: int) -> void:
 			pool.append(typed_array)
 		elif pool_name == "packedVector2_pool":
 			var typed_array: PackedVector2Array = []
+			pool.append(typed_array)
+		elif pool_name == "vector2i_pool":
+			var typed_array: Array[Vector2i] = []
 			pool.append(typed_array)
 		elif pool_name == "obstacles_pool":
 			var typed_array: Array[PathfinderObstacle] = []

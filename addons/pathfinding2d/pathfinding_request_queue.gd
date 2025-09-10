@@ -12,13 +12,12 @@ func _init(pathfinder_system: PathfinderSystem, requests_per_frame: int = 3, tim
 	max_requests_per_frame = requests_per_frame
 	max_time_budget_ms = time_budget
 
-func queue_request(agent: PathfinderAgent, start: Vector2, end: Vector2, radius: float, buffer: float, mask: int):
+func queue_request(agent: PathfinderAgent, start: Vector2, end: Vector2, agent_full_size: float, mask: int):
 	var request = system.array_pool.get_pathfinding_request()
 	request.agent = agent
 	request.start = start
 	request.end = end
-	request.radius = radius
-	request.buffer = buffer
+	request.agent_full_size = agent_full_size
 	request.mask = mask
 	request_queue.append(request)
 
@@ -37,7 +36,7 @@ func process_queue():
 
 func _process_request(request: PathfindingRequest):
 	var path = system.astar_pathfinding.find_path_for_circle(
-		request.start, request.end, request.radius, request.buffer
+		request.start, request.end, request.agent_full_size
 	)
 	
 	if is_instance_valid(request.agent):

@@ -60,8 +60,10 @@ func get_index(obstacle_bounds: Rect2) -> int:
 
 func insert(obstacle: PathfinderObstacle):
 	if not nodes.is_empty():
-		var obstacle_bounds = PathfindingUtils.get_polygon_bounds(obstacle.get_world_polygon())
+		var wold_polygon = obstacle.get_world_polygon()
+		var obstacle_bounds = PathfindingUtils.get_polygon_bounds(wold_polygon)
 		var index = get_index(obstacle_bounds)
+		system.array_pool.return_packedVector2_array(wold_polygon)
 		
 		if index != -1:
 			nodes[index].insert(obstacle)
@@ -73,9 +75,12 @@ func insert(obstacle: PathfinderObstacle):
 		if nodes.is_empty():
 			split()
 		
+		var wold_polygon
 		var i = 0
 		while i < objects.size():
-			var obj_bounds = PathfindingUtils.get_polygon_bounds(objects[i].get_world_polygon())
+			wold_polygon = objects[i].get_world_polygon()
+			var obj_bounds = PathfindingUtils.get_polygon_bounds(wold_polygon)
+			system.array_pool.return_packedVector2_array(wold_polygon)
 			var index = get_index(obj_bounds)
 			if index != -1:
 				nodes[index].insert(objects[i])

@@ -77,13 +77,16 @@ func _register_initial_pathfinders() -> void:
 	for pathfinder in pathfinders:
 		_prepare_registered_pathfinder(pathfinder)
 
+# unregister in obstacle_manager
 func _register_initial_obstacles() -> void:
 	print("=== INITIAL OBSTACLES BOUNDS ===")
 	for i in range(obstacles.size()):
 		var obstacle = obstacles[i]
 		if is_instance_valid(obstacle):
+			obstacle.system = self
 			var world_poly = obstacle.get_world_polygon()
 			var bounds = PathfindingUtils.get_polygon_bounds(world_poly)
+			array_pool.return_packedVector2_array(world_poly)
 			print("Obstacle ", i, ": pos=", obstacle.global_position, " bounds=", bounds, " static=", obstacle.is_static)
 		obstacle_manager.register_initial_obstacle(obstacle)
 	print("=== END INITIAL OBSTACLES ===")
@@ -92,12 +95,6 @@ func _invalidate_affected_paths():
 	for pathfinder in pathfinders:
 		if pathfinder.is_moving and not pathfinder.is_path_valid():
 			pathfinder.recalculate_path()
-
-func register_obstacle(obstacle: PathfinderObstacle):
-	obstacle_manager.register_obstacle(obstacle)
-
-func unregister_obstacle(obstacle: PathfinderObstacle):
-	obstacle_manager.unregister_obstacle(obstacle)
 
 func register_pathfinder(pathfinder: PathfinderAgent):
 	if pathfinder not in pathfinders:
@@ -115,31 +112,24 @@ func unregister_pathfinder(pathfinder: PathfinderAgent):
 	pathfinder.system = null
 	spatial_partition.remove_agent(pathfinder)
 
-func find_path_for_circle(start: Vector2, end: Vector2, radius: float, buffer: float = 2.0, mask: int = 1) -> PackedVector2Array:
+func find_path_for_circle(start: Vector2, end: Vector2, agent_full_size: float = 2.0, mask: int = 1) -> PackedVector2Array:
 	current_pathfinder_mask = mask
-	return astar_pathfinding.find_path_for_circle(start, end, radius, buffer)
+	return astar_pathfinding.find_path_for_circle(start, end, agent_full_size)
 
-# Methods used by PathValidator
-func _is_circle_position_unsafe(pos: Vector2, radius: float, buffer: float) -> bool:
-	return astar_pathfinding._is_circle_position_unsafe(pos, radius, buffer)
-
-func _is_safe_circle_path(start: Vector2, end: Vector2, radius: float, buffer: float) -> bool:
-	return astar_pathfinding._is_safe_circle_path(start, end, radius, buffer)
-
-func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float) -> Vector2:
-	"""Find the closest safe point outside all obstacles for a given unsafe position"""
-	
+# Find the closest safe point outside all obstacles for a given unsafe position
+func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float) -> Vector2:
 	# First, find which obstacle(s) contain this point
-	var containing_obstacles: Array[PathfinderObstacle] = []
-	var nearby_obstacles = spatial_partition.get_obstacles_near_point(unsafe_pos, radius + buffer + PathfindingConstants.CLEARANCE_BASE_ADDITION)
+	var containing_obstacles: Array[PathfinderObstacle] = array_pool.get_obstacle_array()
+	var nearby_obstacles = spatial_partition.get_obstacles_near_point(unsafe_pos, agent_full_size + PathfindingConstants.CLEARANCE_BASE_ADDITION)
 	for obstacle in nearby_obstacles:
 		if is_instance_valid(obstacle) and obstacle.is_point_inside(unsafe_pos):
 			containing_obstacles.append(obstacle)
 	
+	# Point is not actually inside an obstacle, check if it's just too close
 	if containing_obstacles.is_empty():
-		# Point is not actually inside an obstacle, check if it's just too close
 		print("Point not inside obstacle, finding safe position nearby...")
-		return astar_pathfinding._find_safe_circle_position(unsafe_pos, radius, buffer)
+		array_pool.return_obstacles_array(containing_obstacles)
+		return astar_pathfinding._find_safe_circle_position(unsafe_pos, agent_full_size)
 	
 	print("Point is inside ", containing_obstacles.size(), " obstacle(s)")
 	
@@ -147,22 +137,25 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 	var candidates: Array[Vector2] = array_pool.get_vector2_array()
 	
 	for obstacle in containing_obstacles:
-		var safe_pos = _find_closest_point_outside_obstacle(unsafe_pos, obstacle, radius, buffer)
+		var safe_pos = _find_closest_point_outside_obstacle(unsafe_pos, obstacle, agent_full_size)
 		if safe_pos != Vector2.INF:
 			candidates.append(safe_pos)
 		
 		# Also try finding safe points in cardinal directions from obstacle edges
 		var world_poly = obstacle.get_world_polygon()
 		var poly_center = PathfindingUtils.get_polygon_center(world_poly)
+		array_pool.return_packedVector2_array(world_poly)
 		var directions = [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]
 		
 		for direction in directions:
-			var test_distance: float = (radius + buffer + PathfindingConstants.FALLBACK_SEARCH_BUFFER)  # Generous distance
+			var test_distance: float = (agent_full_size + PathfindingConstants.FALLBACK_SEARCH_BUFFER)  # Generous distance
 			var candidate: Vector2 = unsafe_pos + direction * test_distance
 			
 			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
-			   not _is_circle_position_unsafe(candidate, radius, buffer):
+			   not astar_pathfinding._is_circle_position_unsafe(candidate, agent_full_size):
 				candidates.append(candidate)
+	
+	array_pool.return_obstacles_array(containing_obstacles)
 	
 	# Choose the closest valid candidate
 	if not candidates.is_empty():
@@ -181,8 +174,8 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 	
 	# Fallback: search in expanding circles with larger steps
 	print("Using enhanced fallback search method...")
-	var search_step: int = int(max(grid_size, radius + buffer + PathfindingConstants.ENHANCED_SEARCH_STEP_BUFFER))  # Larger search steps
-	var max_search_radius: int = int(max(grid_size * PathfindingConstants.CLEARANCE_BASE_ADDITION, radius * PathfindingConstants.CLEARANCE_SAFETY_MARGIN))  # Expanded search area
+	var search_step: int = int(max(grid_size, agent_full_size + PathfindingConstants.ENHANCED_SEARCH_STEP_BUFFER))  # Larger search steps
+	var max_search_radius: int = int(max(grid_size * PathfindingConstants.CLEARANCE_BASE_ADDITION, agent_full_size * PathfindingConstants.CLEARANCE_SAFETY_MARGIN))  # Expanded search area
 	
 	# Try positions in expanding circles around target
 	for search_radius in range(search_step, max_search_radius, search_step):
@@ -193,7 +186,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 			
 			# Must be within bounds and not unsafe
 			if PathfindingUtils.is_point_in_polygon(test_pos, bounds_polygon) and \
-			   not _is_circle_position_unsafe(test_pos, radius, buffer):
+			   not astar_pathfinding._is_circle_position_unsafe(test_pos, agent_full_size):
 				print("Fallback found safe point at: ", test_pos)
 				array_pool.return_vector2_array(candidates)
 				return test_pos
@@ -202,17 +195,18 @@ func _find_closest_safe_point(unsafe_pos: Vector2, radius: float, buffer: float)
 	array_pool.return_vector2_array(candidates)
 	return Vector2.INF
 
-func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderObstacle, radius: float, buffer: float) -> Vector2:
+func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderObstacle, agent_full_size: float) -> Vector2:
 	"""Find closest point outside a specific obstacle with better clearance"""
 	var world_poly = obstacle.get_world_polygon()
 	if world_poly.is_empty():
+		array_pool.return_packedVector2_array(world_poly)
 		return Vector2.INF
 	
 	var closest_point = Vector2.INF
 	var closest_distance = INF
 	
 	# Increase clearance distance significantly for better pathfinding success
-	var base_clearance: float = radius + buffer + PathfindingConstants.CLEARANCE_BASE_ADDITION  # Increased base clearance
+	var base_clearance: float = agent_full_size + PathfindingConstants.CLEARANCE_BASE_ADDITION  # Increased base clearance
 	
 	# Check each edge of the polygon
 	for i in world_poly.size():
@@ -246,7 +240,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 			
 			# Verify this candidate is good
 			if PathfindingUtils.is_point_in_polygon(safe_candidate, bounds_polygon) and \
-			   not _is_circle_position_unsafe(safe_candidate, radius, buffer):
+			   not astar_pathfinding._is_circle_position_unsafe(safe_candidate, agent_full_size):
 				var distance = point.distance_to(safe_candidate)
 				if distance < closest_distance:
 					closest_distance = distance
@@ -257,6 +251,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 	if closest_point == Vector2.INF:
 		print("Edge-based approach failed, trying radial approach...")
 		var poly_center = PathfindingUtils.get_polygon_center(world_poly)
+		array_pool.return_packedVector2_array(world_poly)
 		var direction = (point - poly_center).normalized()
 		
 		# Try progressively larger distances
@@ -267,7 +262,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		for dist in test_distances:
 			var candidate = point + direction * dist
 			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
-			   not _is_circle_position_unsafe(candidate, radius, buffer):
+			   not astar_pathfinding._is_circle_position_unsafe(candidate, agent_full_size):
 				print("Radial approach found safe point at distance: ", dist)
 				return candidate
 		
@@ -279,8 +274,9 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 			for dist in test_distances:
 				var candidate = point + dir * dist
 				if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
-				   not _is_circle_position_unsafe(candidate, radius, buffer):
+				   not astar_pathfinding._is_circle_position_unsafe(candidate, agent_full_size):
 					print("Cardinal direction found safe point: ", candidate)
 					return candidate
 	
+	array_pool.return_packedVector2_array(world_poly)
 	return closest_point

@@ -42,7 +42,7 @@ func _process_batch():
 	
 	var grid_needs_update = false
 	var paths_need_recalc = false
-	var obstacles_to_update: Array[PathfinderObstacle] = []
+	var obstacles_to_update: Array[PathfinderObstacle] = system.array_pool.get_obstacle_array()
 	
 	# Process obstacle updates
 	for item in pending_updates:
@@ -74,6 +74,7 @@ func _process_batch():
 	if paths_need_recalc:
 		_recalculate_invalid_paths()
 	
+	system.array_pool.return_obstacles_array(obstacles_to_update)
 	changed_obstacles.clear()
 	pending_updates.clear()
 	batch_processed.emit()
@@ -90,12 +91,6 @@ func _process_static_change(obstacle: PathfinderObstacle):
 		obstacle.rot_threshold = PathfindingConstants.DYNAMIC_ROTATION_THRESHOLD
 
 func _recalculate_invalid_paths():
-	var nearby_agents: Array[PathfinderAgent] = []
-	
-	# For each changed obstacle, find nearby agents using spatial partition
+	# For each changed obstacle, find nearby agents using spatial partition and trigger recalculation for all affected agents
 	for obstacle in changed_obstacles:
-		nearby_agents.append_array(system.spatial_partition.get_agents_near_obstacle(obstacle))
-	
-	# Trigger recalculation for all affected agents
-	for agent in nearby_agents:
-		agent._recalculate_or_find_alternative()
+		system.spatial_partition.get_agents_near_obstacle_and_trigger_path_recalc(obstacle)

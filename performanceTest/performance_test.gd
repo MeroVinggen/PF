@@ -60,7 +60,7 @@ func _ready():
 
 func _process(_delta):
 	_update_stats()
-	_update_agent_movement()
+	_update_agent_movement(_delta)
 	if dynamic_moving:
 		_update_dynamic_obstacles()
 
@@ -127,7 +127,7 @@ func _spawn_static_obstacles():
 		
 		add_child(obstacle)
 		static_obstacles.append(obstacle)
-		pathfinding_system.register_obstacle(obstacle)
+		pathfinding_system.obstacle_manager.register_obstacle(obstacle)
 		debug_renderer.add_obstacle(obstacle)
 
 func _spawn_dynamic_obstacles():
@@ -160,7 +160,7 @@ func _spawn_dynamic_obstacles():
 		
 		add_child(obstacle)
 		dynamic_obstacles.append(obstacle)
-		pathfinding_system.register_obstacle(obstacle)
+		pathfinding_system.obstacle_manager.register_obstacle(obstacle)
 		debug_renderer.add_obstacle(obstacle)
 
 func _spawn_agents():
@@ -182,6 +182,8 @@ func _spawn_agents():
 		agent.global_position = safe_pos
 		agent.set_meta("speed", agent_speed * entities_scale)
 		agent.set_meta("target_pos", Vector2.ZERO)
+		agent.set_meta("distance", 0.0)
+		agent.set_meta("direction", Vector2.ZERO)
 		
 		add_child(agent)
 		agents.append(agent)
@@ -229,24 +231,39 @@ func _spawn_targets():
 		add_child(target)
 		targets.append(target)
 
-func _update_agent_movement():
+func _update_agent_movement(delta):
 	for agent in agents:
 		if not is_instance_valid(agent) or not agent.is_moving:
 			continue
-			
+	
 		var speed = agent.get_meta("speed", agent_speed)
-		var next_waypoint = agent.get_next_waypoint()
+		var current_target = agent.get_meta("target_pos")
+		var distance = agent.get_meta("distance")
+		var direction = agent.get_meta("direction")
+		var update_current_target = agent.get_next_waypoint()
 		
-		if next_waypoint == Vector2.INF:
-			continue
-			
-		var direction = (next_waypoint - agent.global_position).normalized()
-		var distance = agent.global_position.distance_to(next_waypoint)
+		if update_current_target == current_target:
+			distance = agent.global_position.distance_to(current_target)
+			make_step(delta, agent, distance, direction, speed)
+			return
 		
-		if distance < 5.0:  # Close enough to waypoint
-			agent.advance_to_next_waypoint()
-		else:
-			agent.global_position += direction * speed * get_process_delta_time()
+		current_target = update_current_target
+		
+		if current_target == Vector2.INF:
+			return
+		
+		# target point been updated - recalc movement data
+		direction = (current_target - agent.global_position).normalized()
+		distance = agent.global_position.distance_to(current_target)
+		make_step(delta, agent, distance, direction, speed)
+
+
+func make_step(delta: float, agent, distance, direction, speed) -> void:
+	# Close enough to waypoint
+	if distance < 5.0:
+		agent.advance_to_next_waypoint()
+	else:
+		agent.global_position += direction * speed * delta
 
 func _update_dynamic_obstacles():
 	var viewport_size = get_viewport().get_visible_rect().size

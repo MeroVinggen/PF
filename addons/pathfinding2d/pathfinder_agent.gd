@@ -28,6 +28,8 @@ var last_spatial_position: Vector2 = Vector2.INF
 var spatial_update_threshold: float = 20.0 
 
 func _physics_process(delta: float):
+	if not system or Engine.is_editor_hint():
+		return
 	# Check if agent moved enough to warrant spatial partition update
 	if last_spatial_position.distance_to(global_position) > spatial_update_threshold:
 		system.spatial_partition.update_agent(self)

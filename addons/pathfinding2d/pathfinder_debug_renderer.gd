@@ -35,7 +35,6 @@ var cached_static_obstacles: Dictionary = {}  # obstacle -> last_transform
 var cached_dynamic_paths: Dictionary = {}     # agent -> last_path_hash
 var cached_system_bounds: Dictionary = {}     # system -> last_bounds
 var draw_data_dirty: bool = true
-var last_camera_transform: Transform2D
 
 # Batched draw data (#3)
 var batched_obstacle_polygons: Array[PackedVector2Array] = []
@@ -48,62 +47,8 @@ func _physics_process(delta: float) -> void:
 	if draw_timer >= draw_timer_cap:
 		draw_timer = 0.0
 		
-		# Check if we need to update cached data
-		_update_cache_validity()
-		
-		if draw_data_dirty:
-			_prepare_batched_draw_data()
-			draw_data_dirty = false
-		
+		_prepare_batched_draw_data()
 		queue_redraw()
-
-func _update_cache_validity():
-	var current_camera = get_viewport().get_camera_2d()
-	var camera_changed = false
-	
-	if current_camera:
-		var current_transform = current_camera.get_screen_center_position()
-		if current_transform != last_camera_transform:
-			camera_changed = true
-			last_camera_transform = current_transform
-	
-	# Check static obstacles for changes
-	for obstacle in obstacles_to_debug:
-		if not is_instance_valid(obstacle):
-			continue
-			
-		if obstacle.is_static:
-			var current_transform = obstacle.global_transform
-			if not cached_static_obstacles.has(obstacle) or cached_static_obstacles[obstacle] != current_transform:
-				cached_static_obstacles[obstacle] = current_transform
-				draw_data_dirty = true
-		else:
-			# Dynamic obstacles always trigger redraw
-			draw_data_dirty = true
-	
-	# Check pathfinders for path changes
-	for pathfinder in pathfinders_to_debug:
-		if not is_instance_valid(pathfinder):
-			continue
-			
-		var path_hash = _hash_path(pathfinder.current_path, pathfinder.path_index, pathfinder.global_position)
-		
-		if not cached_dynamic_paths.has(pathfinder) or cached_dynamic_paths[pathfinder] != path_hash:
-			cached_dynamic_paths[pathfinder] = path_hash
-			draw_data_dirty = true
-	
-	# Check system bounds
-	for system in systems_to_debug:
-		if not is_instance_valid(system):
-			continue
-			
-		var bounds_hash = _hash_polygon(system.bounds_polygon)
-		if not cached_system_bounds.has(system) or cached_system_bounds[system] != bounds_hash:
-			cached_system_bounds[system] = bounds_hash
-			draw_data_dirty = true
-	
-	if camera_changed:
-		draw_data_dirty = true
 
 func _prepare_batched_draw_data():
 	# Clear previous batch data
@@ -132,7 +77,7 @@ func _batch_obstacles():
 			if not is_instance_valid(obstacle):
 				continue
 			
-			# set system only if in editor!
+			# set system only if in editor as fix!
 			if Engine.is_editor_hint():
 				obstacle.system = system
 			
@@ -231,6 +176,7 @@ func _draw_systems():
 func _draw_batched_obstacles():
 	# Draw all obstacle polygons in batches
 	for i in range(batched_obstacle_polygons.size()):
+		
 		var poly = batched_obstacle_polygons[i]
 		var color = batched_obstacle_colors[i] if i < batched_obstacle_colors.size() else obstacle_color
 		
@@ -239,6 +185,7 @@ func _draw_batched_obstacles():
 		
 		# Draw outline
 		var outline = poly + PackedVector2Array([poly[0]])
+		
 		draw_polyline(outline, color, 2.0)
 
 func _draw_batched_pathfinders():

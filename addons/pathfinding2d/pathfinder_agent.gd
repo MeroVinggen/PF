@@ -13,11 +13,11 @@ signal path_recalculated()
 @export var agent_radius: float = 10.0 : 
 	set(value):
 		agent_radius = value
-		agent_full_size = agent_radius + agent_buffer
+		_updateAgentMetricsBasedOnSizeAndBuffer()
 @export var agent_buffer: float = 2.0 :
 	set(value):
 		agent_buffer = value
-		agent_full_size = agent_radius + agent_buffer
+		_updateAgentMetricsBasedOnSizeAndBuffer()
 @export_flags_2d_physics var mask: int = 1
 
 @onready var agent_full_size: float = agent_radius + agent_buffer
@@ -32,7 +32,17 @@ var pending_pathfinding_request: bool = false
 var consecutive_failed_recalcs: int = 0
 
 var last_spatial_position: Vector2 = Vector2.INF
-var spatial_update_threshold: float = 20.0 
+var spatial_update_threshold: float = 20.0
+
+func _ready() -> void:
+	_updateAgentMetricsBasedOnSizeAndBuffer()
+	print("spatial_update_threshold: ", spatial_update_threshold)
+
+func _updateAgentMetricsBasedOnSizeAndBuffer() -> void:
+	agent_full_size = agent_radius + agent_buffer
+	return
+	if not system or Engine.is_editor_hint():
+		spatial_update_threshold = min(agent_full_size * 0.3, system.grid_size * 0.5)
 
 func _physics_process(delta: float):
 	if not system or Engine.is_editor_hint():

@@ -77,12 +77,13 @@ func _register_initial_obstacles() -> void:
 	print("=== INITIAL OBSTACLES BOUNDS ===")
 	for i in range(obstacles.size()):
 		var obstacle = obstacles[i]
-		if is_instance_valid(obstacle):
-			obstacle.system = self
-			var world_poly = obstacle.get_world_polygon()
-			var bounds = PathfindingUtils.get_polygon_bounds(world_poly)
-			array_pool.return_packedVector2_array(world_poly)
-			print("Obstacle ", i, ": pos=", obstacle.global_position, " bounds=", bounds, " static=", obstacle.is_static)
+		if not is_instance_valid(obstacle):
+			continue
+		obstacle.system = self
+		var world_poly = obstacle.get_world_polygon()
+		var bounds = PathfindingUtils.get_polygon_bounds(world_poly)
+		array_pool.return_packedVector2_array(world_poly)
+		print("Obstacle ", i, ": pos=", obstacle.global_position, " bounds=", bounds, " static=", obstacle.is_static)
 		obstacle_manager.register_initial_obstacle(obstacle)
 	print("=== END INITIAL OBSTACLES ===")
 

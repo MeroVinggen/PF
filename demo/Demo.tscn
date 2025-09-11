@@ -17,7 +17,7 @@ obstacles = [NodePath("../PathfinderObstacleS"), NodePath("../PathfinderObstacle
 metadata/_custom_type_script = "uid://iy0w45a50gju"
 
 [node name="PathfinderObstacleS" type="Node2D" parent="."]
-position = Vector2(270, 293)
+position = Vector2(273, 278)
 script = ExtResource("3_eaos1")
 obstacle_polygon = PackedVector2Array(-25, -25, 25, -25, 25, 25, -25, 25)
 metadata/_custom_type_script = "uid://dsw8ahtan3evv"

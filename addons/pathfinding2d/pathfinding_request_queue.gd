@@ -35,8 +35,8 @@ func process_queue():
 		processed += 1
 
 func _process_request(request: PathfindingRequest):
-	var path = system.astar_pathfinding.find_path_for_circle(
-		request.start, request.end, request.agent_full_size
+	var path = PathfindingUtils.find_path_for_circle(
+		system, request.start, request.end, request.agent_full_size
 	)
 	
 	if is_instance_valid(request.agent):

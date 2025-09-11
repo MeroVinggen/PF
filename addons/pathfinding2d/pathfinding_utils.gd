@@ -89,13 +89,11 @@ static func is_position_unsafe_with_obstacles(system: PathfinderSystem, pos: Vec
 			continue
 		if not ((obstacle.layer & mask) != 0):
 			continue
-		var world_poly = obstacle.get_world_polygon()
-		if world_poly.is_empty():
-			system.array_pool.return_packedVector2_array(world_poly)
+		
+		if obstacle.cached_world_polygon.is_empty():
 			continue
 			
-		var distance_to_obstacle = distance_point_to_polygon(pos, world_poly, agent_full_size)
-		system.array_pool.return_packedVector2_array(world_poly)
+		var distance_to_obstacle = distance_point_to_polygon(pos, obstacle.cached_world_polygon, agent_full_size)
 		if distance_to_obstacle < (agent_full_size - PathfindingConstants.SAFETY_MARGIN):
 			return true
 	
@@ -149,13 +147,11 @@ static func is_circle_position_unsafe(system: PathfinderSystem, pos: Vector2, ag
 			continue
 		if not ((obstacle.layer & mask) != 0):
 			continue
-		var world_poly = obstacle.get_world_polygon()
-		if world_poly.is_empty():
-			system.array_pool.return_packedVector2_array(world_poly)
+		
+		if obstacle.cached_world_polygon.is_empty():
 			continue
 			
-		var distance_to_obstacle = distance_point_to_polygon(pos, world_poly, agent_full_size)
-		system.array_pool.return_packedVector2_array(world_poly)
+		var distance_to_obstacle = distance_point_to_polygon(pos, obstacle.cached_world_polygon, agent_full_size)
 		if distance_to_obstacle < (agent_full_size - PathfindingConstants.SAFETY_MARGIN):
 			return true
 	
@@ -204,9 +200,7 @@ static func find_closest_safe_point(system: PathfinderSystem, unsafe_pos: Vector
 			candidates.append(safe_pos)
 		
 		# Also try finding safe points in cardinal directions from obstacle edges
-		var world_poly = obstacle.get_world_polygon()
-		var poly_center = get_polygon_center(world_poly)
-		system.array_pool.return_packedVector2_array(world_poly)
+		var poly_center = get_polygon_center(obstacle.cached_world_polygon)
 		var directions = [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]
 		
 		for direction in directions:
@@ -259,9 +253,7 @@ static func find_closest_safe_point(system: PathfinderSystem, unsafe_pos: Vector
 
 static func find_closest_point_outside_obstacle(system: PathfinderSystem, point: Vector2, obstacle: PathfinderObstacle, agent_full_size: float, mask: int) -> Vector2:
 	"""Find closest point outside a specific obstacle with better clearance"""
-	var world_poly = obstacle.get_world_polygon()
-	if world_poly.is_empty():
-		system.array_pool.return_packedVector2_array(world_poly)
+	if obstacle.cached_world_polygon.is_empty():
 		return Vector2.INF
 	
 	var closest_point = Vector2.INF
@@ -271,9 +263,9 @@ static func find_closest_point_outside_obstacle(system: PathfinderSystem, point:
 	var base_clearance: float = agent_full_size + PathfindingConstants.CLEARANCE_BASE_ADDITION  # Increased base clearance
 	
 	# Check each edge of the polygon
-	for i in world_poly.size():
-		var edge_start = world_poly[i]
-		var edge_end = world_poly[(i + 1) % world_poly.size()]
+	for i in obstacle.cached_world_polygon.size():
+		var edge_start = obstacle.cached_world_polygon[i]
+		var edge_end = obstacle.cached_world_polygon[(i + 1) % obstacle.cached_world_polygon.size()]
 		
 		# Find closest point on this edge
 		var edge_point = closest_point_on_line_segment(point, edge_start, edge_end)
@@ -289,7 +281,7 @@ static func find_closest_point_outside_obstacle(system: PathfinderSystem, point:
 			var test_point1 = edge_point + direction * PathfindingConstants.DIRECTION_TEST_DISTANCE
 			var test_point2 = edge_point - direction * PathfindingConstants.DIRECTION_TEST_DISTANCE
 			
-			if is_point_in_polygon(test_point1, world_poly):
+			if is_point_in_polygon(test_point1, obstacle.cached_world_polygon):
 				direction = -direction  # Flip if we picked the wrong direction
 		
 		# Try multiple clearance distances for robustness
@@ -312,8 +304,7 @@ static func find_closest_point_outside_obstacle(system: PathfinderSystem, point:
 	# If no edge-based solution worked, try radial approach with multiple distances
 	if closest_point == Vector2.INF:
 		print("Edge-based approach failed, trying radial approach...")
-		var poly_center = get_polygon_center(world_poly)
-		system.array_pool.return_packedVector2_array(world_poly)
+		var poly_center = get_polygon_center(obstacle.cached_world_polygon)
 		var direction = (point - poly_center).normalized()
 		
 		# Try progressively larger distances
@@ -340,7 +331,6 @@ static func find_closest_point_outside_obstacle(system: PathfinderSystem, point:
 					print("Cardinal direction found safe point: ", candidate)
 					return candidate
 	
-	system.array_pool.return_packedVector2_array(world_poly)
 	return closest_point
 
 static func find_safe_circle_position(system: PathfinderSystem, pos: Vector2, agent_full_size: float, mask: int) -> Vector2:
@@ -417,12 +407,9 @@ static func find_path_for_circle(system: PathfinderSystem, start: Vector2, end: 
 	print("Total obstacles: ", system.obstacles.size())
 	
 	# Log all obstacle positions and states
-	var world_poly
 	for i in range(system.obstacles.size()):
 		var obs: PathfinderObstacle = system.obstacles[i]
-		world_poly = obs.get_world_polygon()
-		print("Obstacle ", i, ": pos=", obs.global_position, " static=", obs.is_static, " poly=", world_poly)
-		obs.system.array_pool.return_packedVector2_array(world_poly)
+		print("Obstacle ", i, ": pos=", obs.global_position, " static=", obs.is_static, " poly=", obs.cached_world_polygon)
 	
 	if PathfindingUtils.is_safe_circle_path(system, start, end, agent_full_size, mask):
 		print("Using direct path")

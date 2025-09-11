@@ -13,11 +13,12 @@ dynamic_obstacles_amount = 40
 
 [node name="PathfinderSystem" type="Node2D" parent="."]
 script = ExtResource("2_v0r0a")
-bounds_polygon = PackedVector2Array(-500, -500, 500, -500, 500, 500, -500, 500)
+bounds_polygon = PackedVector2Array(0, 0, 500, 0, 500, 500, 0, 500)
 metadata/_custom_type_script = "uid://iy0w45a50gju"
 
-[node name="PathfindingDebugRenderer" type="Node2D" parent="."]
+[node name="PathfindingDebugRenderer" type="Node2D" parent="." node_paths=PackedStringArray("systems_to_debug")]
 script = ExtResource("3_yjtch")
+systems_to_debug = [NodePath("")]
 metadata/_custom_type_script = "uid://dq8my7tks08qu"
 
 [node name="UIContainer" type="Control" parent="."]

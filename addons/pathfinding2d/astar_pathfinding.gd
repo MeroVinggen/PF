@@ -15,8 +15,6 @@ func _init(pathfinder_system: PathfinderSystem, node_pool: PathNodePool):
 	system = pathfinder_system
 	pool = node_pool
 
-
-
 func cleanup_path_nodes():
 	var all_nodes: Array[PathNode] = []
 	all_nodes.append_array(open_set)

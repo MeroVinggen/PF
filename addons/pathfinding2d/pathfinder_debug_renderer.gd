@@ -5,8 +5,6 @@ extends Node2D
 class_name PathfindingDebugRenderer
 
 @export var systems_to_debug: Array[PathfinderSystem] = []
-@export var obstacles_to_debug: Array[PathfinderObstacle] = []
-@export var pathfinders_to_debug: Array[PathfinderAgent] = []
 
 @export_group("Debug Options")
 @export var draw_systems: bool = true
@@ -22,21 +20,17 @@ class_name PathfindingDebugRenderer
 @export var system_bounds_color: Color = Color.DARK_CYAN
 @export var obstacle_color: Color = Color.RED
 @export var dynamic_obstacle_color: Color = Color.ORANGE
+@export var obstacle_disabled_color: Color = Color.GRAY
 @export var pathfinder_color: Color = Color.GREEN
 @export var pathfinder_buffer_color: Color = Color.CYAN
 @export var path_color: Color = Color.YELLOW
 
 # Performance optimization variables
 var draw_timer: float = 0.0
+# 30 fps by default
 var draw_timer_cap: float = 0.032
 
-# Caching system (#4)
-var cached_static_obstacles: Dictionary = {}  # obstacle -> last_transform
-var cached_dynamic_paths: Dictionary = {}     # agent -> last_path_hash
-var cached_system_bounds: Dictionary = {}     # system -> last_bounds
-var draw_data_dirty: bool = true
-
-# Batched draw data (#3)
+# Batched draw data
 var batched_obstacle_polygons: Array[PackedVector2Array] = []
 var batched_obstacle_colors: Array[Color] = []
 var batched_path_lines: Array[Array] = []  # Array of [start, end, color]
@@ -69,35 +63,37 @@ func _batch_obstacles():
 	var static_colors: Array[Color] = []
 	var dynamic_polygons: Array[PackedVector2Array] = []
 	var dynamic_colors: Array[Color] = []
+	var disabled_polygons: Array[PackedVector2Array] = []
+	var disabled_colors: Array[Color] = []
 	
 	for system: PathfinderSystem in systems_to_debug:
 		for obstacle: PathfinderObstacle in system.obstacles:
 	
-	#for obstacle: PathfinderObstacle in obstacles_to_debug:
 			if not is_instance_valid(obstacle):
 				continue
 			
-			# set system only if in editor as fix!
+			# obstacles fix for the editor mode!
 			if Engine.is_editor_hint():
-				obstacle.system = system
+				if not obstacle.system:
+					obstacle.system = system
+				
+				obstacle._store_last_state()
 			
-			var world_poly = obstacle.get_world_polygon()
-			if world_poly.size() < 3:
-				obstacle.system.array_pool.return_packedVector2_array(world_poly)
+			if obstacle.cached_world_polygon.size() < 3:
+				obstacle.system.array_pool.return_packedVector2_array(obstacle.cached_world_polygon)
 				continue
 			
-			var color = dynamic_obstacle_color if not obstacle.is_static else obstacle_color
+			if obstacle.disabled:
+				disabled_polygons.append(obstacle.cached_world_polygon)
+				disabled_colors.append(obstacle_disabled_color)
+				continue
 			
 			if obstacle.is_static:
-				# duplicate to avoide errs, coz the arr will be cleared when returned to the pool
-				static_polygons.append(world_poly.duplicate())
-				obstacle.system.array_pool.return_packedVector2_array(world_poly)
-				static_colors.append(color)
+				static_polygons.append(obstacle.cached_world_polygon)
+				static_colors.append(obstacle_color)
 			else:
-				# duplicate to avoide errs, coz the arr will be cleared when returned to the pool
-				dynamic_polygons.append(world_poly.duplicate())
-				obstacle.system.array_pool.return_packedVector2_array(world_poly)
-				dynamic_colors.append(color)
+				dynamic_polygons.append(obstacle.cached_world_polygon)
+				dynamic_colors.append(dynamic_obstacle_color)
 				
 				# Add dynamic indicator circle to batch
 				batched_circles.append([obstacle.global_position, 8.0, Color.YELLOW])
@@ -108,27 +104,30 @@ func _batch_obstacles():
 	batched_obstacle_colors.append_array(static_colors)
 	batched_obstacle_polygons.append_array(dynamic_polygons)
 	batched_obstacle_colors.append_array(dynamic_colors)
+	batched_obstacle_polygons.append_array(disabled_polygons)
+	batched_obstacle_colors.append_array(disabled_colors)
 
 func _batch_pathfinders():
-	for pathfinder in pathfinders_to_debug:
-		if not is_instance_valid(pathfinder):
-			continue
-		
-		var pos = pathfinder.global_position
-		
-		# Batch buffer area
-		if pathfinder.agent_buffer > 0:
-			var buffer_radius = pathfinder.agent_radius + pathfinder.agent_buffer
-			batched_circles.append([pos, buffer_radius, pathfinder_buffer_color * 0.3])
-		
-		# Batch agent circle
-		var color = pathfinder_color
-		if pathfinder.consecutive_failed_recalcs > 0:
-			color = Color.PURPLE
-		batched_circles.append([pos, pathfinder.agent_radius, color])
-		
-		if draw_pathfinders_path:
-			_batch_pathfinders_path(pathfinder)
+	for system: PathfinderSystem in systems_to_debug:
+		for pathfinder in system.pathfinders:
+			if not is_instance_valid(pathfinder):
+				continue
+			
+			var pos = pathfinder.global_position
+			
+			# Batch buffer area
+			if pathfinder.agent_buffer > 0:
+				var buffer_radius = pathfinder.agent_radius + pathfinder.agent_buffer
+				batched_circles.append([pos, buffer_radius, pathfinder_buffer_color * 0.3])
+			
+			# Batch agent circle
+			var color = pathfinder_color
+			if pathfinder.consecutive_failed_recalcs > 0:
+				color = Color.PURPLE
+			batched_circles.append([pos, pathfinder.agent_radius, pathfinder_color])
+			
+			if draw_pathfinders_path:
+				_batch_pathfinders_path(pathfinder)
 
 func _batch_pathfinders_path(pathfinder):
 		# Batch path lines
@@ -196,63 +195,3 @@ func _draw_batched_pathfinders():
 	# Draw all circles (agents, buffers, waypoints, targets)
 	for circle_data in batched_circles:
 		draw_circle(circle_data[0], circle_data[1], circle_data[2])
-
-func _hash_path(path: PackedVector2Array, path_index: int, agent_pos: Vector2) -> int:
-	var hash = 0
-	hash = hash ^ path.size()
-	hash = hash ^ path_index
-	hash = hash ^ int(agent_pos.x * 100) ^ int(agent_pos.y * 100)
-	
-	# Sample a few path points for hash (don't hash entire path for performance)
-	var sample_points = min(5, path.size())
-	for i in sample_points:
-		var point = path[i * path.size() / sample_points]
-		hash = hash ^ int(point.x * 100) ^ int(point.y * 100)
-	
-	return hash
-
-func _hash_polygon(poly: PackedVector2Array) -> int:
-	var hash = poly.size()
-	for point in poly:
-		hash = hash ^ int(point.x * 100) ^ int(point.y * 100)
-	return hash
-
-# Public interface remains the same
-func add_system(system: PathfinderSystem):
-	if system not in systems_to_debug:
-		systems_to_debug.append(system)
-		draw_data_dirty = true
-
-func remove_system(system: PathfinderSystem):
-	systems_to_debug.erase(system)
-	cached_system_bounds.erase(system)
-	draw_data_dirty = true
-
-func add_obstacle(obstacle: PathfinderObstacle):
-	if obstacle not in obstacles_to_debug:
-		obstacles_to_debug.append(obstacle)
-		draw_data_dirty = true
-
-func remove_obstacle(obstacle: PathfinderObstacle):
-	obstacles_to_debug.erase(obstacle)
-	cached_static_obstacles.erase(obstacle)
-	draw_data_dirty = true
-
-func add_pathfinder(pathfinder: PathfinderAgent):
-	if pathfinder not in pathfinders_to_debug:
-		pathfinders_to_debug.append(pathfinder)
-		draw_data_dirty = true
-
-func remove_pathfinder(pathfinder: PathfinderAgent):
-	pathfinders_to_debug.erase(pathfinder)
-	cached_dynamic_paths.erase(pathfinder)
-	draw_data_dirty = true
-
-func clear_all():
-	systems_to_debug.clear()
-	obstacles_to_debug.clear()
-	pathfinders_to_debug.clear()
-	cached_static_obstacles.clear()
-	cached_dynamic_paths.clear()
-	cached_system_bounds.clear()
-	draw_data_dirty = true

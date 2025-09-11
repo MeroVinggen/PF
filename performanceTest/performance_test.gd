@@ -2,6 +2,10 @@ extends Node2D
 
 # Export properties for testing
 @export_group("Test Parameters")
+@export var update_frequency: int = 30 :
+	set(value):
+		update_frequency = value
+		draw_timer_cap = 1.0 / update_frequency
 @export var entities_scale: float = 1.0
 @export var agents_amount: int = 100
 @export var agents_radius: float = 8.0
@@ -22,6 +26,11 @@ extends Node2D
 @onready var move_dynamic_btn: Button = $UIContainer/VBoxContainer/move_dynamic_btn
 @onready var fps_label: Label = $UIContainer/VBoxContainer/FPSLabel
 @onready var stats_label: Label = $UIContainer/VBoxContainer/StatsLabel
+
+# Performance optimization variables
+var draw_timer: float = 0.0
+# 30 fps by default
+var draw_timer_cap: float = 0.032
 
 # Runtime data
 var agents: Array[PathfinderAgent] = []
@@ -58,9 +67,15 @@ func _ready():
 	stop_agents.pressed.connect(_on_stop_agents)
 	restart.pressed.connect(_on_restart)
 
-func _process(_delta):
+func _physics_process(delta: float) -> void:
+	draw_timer += delta
+	if draw_timer < draw_timer_cap:
+		return
+	
+	draw_timer = 0.0
+	
 	_update_stats()
-	_update_agent_movement(_delta)
+	_update_agent_movement(delta)
 	if dynamic_moving:
 		_update_dynamic_obstacles()
 
@@ -76,11 +91,6 @@ func _setup_pathfinding_system():
 		Vector2(50, viewport_size.y - 50)
 	])
 	
-	# Configure debug renderer
-	debug_renderer.add_system(pathfinding_system)
-	debug_renderer.draw_systems = true
-	debug_renderer.draw_obstacles = true
-	debug_renderer.draw_pathfinders = true
 
 func _spawn_all_entities():
 	_clear_all_entities()
@@ -128,7 +138,6 @@ func _spawn_static_obstacles():
 		add_child(obstacle)
 		static_obstacles.append(obstacle)
 		pathfinding_system.obstacle_manager.register_obstacle(obstacle)
-		debug_renderer.add_obstacle(obstacle)
 
 func _spawn_dynamic_obstacles():
 	var viewport_size = get_viewport().get_visible_rect().size
@@ -161,7 +170,6 @@ func _spawn_dynamic_obstacles():
 		add_child(obstacle)
 		dynamic_obstacles.append(obstacle)
 		pathfinding_system.obstacle_manager.register_obstacle(obstacle)
-		debug_renderer.add_obstacle(obstacle)
 
 func _spawn_agents():
 	var viewport_size = get_viewport().get_visible_rect().size
@@ -188,7 +196,6 @@ func _spawn_agents():
 		add_child(agent)
 		agents.append(agent)
 		pathfinding_system.register_pathfinder(agent)
-		debug_renderer.add_pathfinder(agent)
 
 func _find_safe_spawn_position(radius: float) -> Vector2:
 	var viewport_size = get_viewport().get_visible_rect().size

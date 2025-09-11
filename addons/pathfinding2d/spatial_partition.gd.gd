@@ -88,14 +88,12 @@ func get_obstacles_near_point(pos: Vector2, radius: float) -> Array[PathfinderOb
 	return get_obstacles_in_region(min_pos, max_pos)
 
 func _get_obstacle_sectors(obstacle: PathfinderObstacle) -> Array[Vector2i]:
-	var world_poly = obstacle.get_world_polygon()
-	if world_poly.is_empty():
+	if obstacle.cached_world_polygon.is_empty():
 		return []
 	
-	var bounds = PathfindingUtils.get_polygon_bounds(world_poly)
+	var bounds = PathfindingUtils.get_polygon_bounds(obstacle.cached_world_polygon)
 	var min_sector = _world_to_sector(bounds.position)
 	var max_sector = _world_to_sector(bounds.position + bounds.size)
-	system.array_pool.return_packedVector2_array(world_poly)
 	
 	var result: Array[Vector2i] = system.array_pool.get_vector2i_array()
 	for x in range(min_sector.x, max_sector.x + 1):

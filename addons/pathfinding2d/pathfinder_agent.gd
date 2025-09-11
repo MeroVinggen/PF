@@ -36,7 +36,6 @@ var spatial_update_threshold: float = 20.0
 
 func _ready() -> void:
 	_updateAgentMetricsBasedOnSizeAndBuffer()
-	print("spatial_update_threshold: ", spatial_update_threshold)
 
 func _updateAgentMetricsBasedOnSizeAndBuffer() -> void:
 	agent_full_size = agent_radius + agent_buffer

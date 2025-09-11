@@ -28,6 +28,8 @@ var rot_threshold: float
 var update_timer: float = 0.0
 var update_interval: float
 var cached_max_radius: float = -1.0
+var cached_world_polygon: PackedVector2Array = []
+var _polygon_changed: bool = false
 
 func _set_update_frequency(value: float):
 	update_frequency = max(0.0, value)
@@ -45,7 +47,6 @@ func _set_disabled(value: bool):
 
 func _ready():
 	update_interval = 1.0 / update_frequency
-	_check_for_changes()
 
 func _physics_process(delta):
 	if Engine.is_editor_hint() or is_static or disabled or update_frequency == 0:
@@ -61,17 +62,19 @@ func _exit_tree():
 		system.obstacle_manager.unregister_obstacle(self)
 
 func _has_changed() -> bool:
-	# pos chenged
+	# pos changed
 	if last_position.distance_to(global_position) > pos_threshold:
 		return true
 	
 	# polygon changed by size
 	if obstacle_polygon.size() != last_polygon.size():
+		_polygon_changed = true
 		return true
 	# polygon changed by vertex
 	else: 
 		for i in obstacle_polygon.size():
 			if obstacle_polygon[i].distance_to(last_polygon[i]) > PathfindingConstants.POLYGON_CHANGE_THRESHOLD:
+				_polygon_changed = true
 				return true
 	
 	# transform changed
@@ -84,28 +87,26 @@ func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
 	return (a.origin.distance_to(b.origin) < pos_threshold and 
 			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and
 			(a.get_scale() - b.get_scale()).length() < PathfindingConstants.TRANSFORM_SCALE_THRESHOLD)
-var i: int = 0
+#var i: int = 0
 func _check_for_changes():
 	if _has_changed():
-		i += 1
-		if i >= 3:
-			print("Obstacle at: ", global_position, " (was: ", last_position, ")")
-			i = 0
+		#i += 1
+		#if i >= 3:
+			#print("Obstacle at: ", global_position, " (was: ", last_position, ")")
+			#i = 0
 		_store_last_state()
-		obstacle_changed.emit(self)
+		if not is_static:
+			obstacle_changed.emit(self)
 		last_position = global_position  # Update position for next frame
 
 func _store_last_state():
 	# Don't update last_position immediately, let it be updated next frame
 	last_polygon = obstacle_polygon.duplicate()
 	last_transform = global_transform
-	_update_max_radius_cache()
-
-func get_world_polygon() -> PackedVector2Array:
-	var world_poly: PackedVector2Array = system.array_pool.get_packedVector2_array()
-	for point in obstacle_polygon:
-		world_poly.append(global_transform * point)
-	return world_poly
+	_update_cached_world_polygon()
+	if _polygon_changed:
+		_update_max_radius_cache()
+		_polygon_changed = false
 
 func is_point_inside(point: Vector2) -> bool:
 	var local_point = global_transform.affine_inverse() * point
@@ -115,3 +116,13 @@ func _update_max_radius_cache():
 	cached_max_radius = 0.0
 	for point in obstacle_polygon:
 		cached_max_radius = max(cached_max_radius, point.length())
+
+func _update_cached_world_polygon() -> void:
+	cached_world_polygon.clear()
+	for point in obstacle_polygon:
+		cached_world_polygon.append(global_transform * point)
+
+func update_data() -> void:
+	print("UPDATE")
+	_update_max_radius_cache()
+	_update_cached_world_polygon()

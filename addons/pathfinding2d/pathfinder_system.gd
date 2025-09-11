@@ -3,10 +3,10 @@ extends Node2D
 class_name PathfinderSystem
 
 @export var bounds_polygon: PackedVector2Array = PackedVector2Array([
-	Vector2(-500, -500),
-	Vector2(500, -500),
+	Vector2.ZERO,
+	Vector2(500, 0),
 	Vector2(500, 500),
-	Vector2(-500, 500)
+	Vector2(0, 500)
 ])
 
 @export var grid_size: float = 25.0
@@ -80,9 +80,8 @@ func _register_initial_obstacles() -> void:
 		if not is_instance_valid(obstacle):
 			continue
 		obstacle.system = self
-		var world_poly = obstacle.get_world_polygon()
-		var bounds = PathfindingUtils.get_polygon_bounds(world_poly)
-		array_pool.return_packedVector2_array(world_poly)
+		obstacle.update_data()
+		var bounds = PathfindingUtils.get_polygon_bounds(obstacle.cached_world_polygon)
 		print("Obstacle ", i, ": pos=", obstacle.global_position, " bounds=", bounds, " static=", obstacle.is_static)
 		obstacle_manager.register_initial_obstacle(obstacle)
 	print("=== END INITIAL OBSTACLES ===")

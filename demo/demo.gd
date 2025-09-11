@@ -61,7 +61,7 @@ func _update_debug_ui():
 	
 	if pathfinder:
 		info.append("Moving: " + str(pathfinder.is_moving))
-		info.append("Valid: " + str(pathfinder.is_path_valid()))
+		#info.append("Valid: " + str(pathfinder.is_path_valid()))
 		info.append("Failures: " + str(pathfinder.consecutive_failed_recalcs))
 		#info.append("Stuck: " + str(movement_controller.is_stuck()))
 	

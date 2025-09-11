@@ -13,8 +13,6 @@ class_name PathfindingDebugRenderer
 @export var draw_obstacles: bool = true
 @export var draw_pathfinders: bool = true
 @export var draw_pathfinders_path: bool = true
-@export var draw_grid: bool = false
-@export var grid_sample_rate: int = 10
 @export var draw_fps: float = 30.0 :
 	set(value):
 		draw_fps = value
@@ -27,8 +25,6 @@ class_name PathfindingDebugRenderer
 @export var pathfinder_color: Color = Color.GREEN
 @export var pathfinder_buffer_color: Color = Color.CYAN
 @export var path_color: Color = Color.YELLOW
-@export var grid_clear_color: Color = Color.CORNFLOWER_BLUE
-@export var grid_blocked_color: Color = Color.RED
 
 # Performance optimization variables
 var draw_timer: float = 0.0
@@ -90,8 +86,7 @@ func _update_cache_validity():
 		if not is_instance_valid(pathfinder):
 			continue
 			
-		var current_path = pathfinder.get_current_path()
-		var path_hash = _hash_path(current_path, pathfinder.path_index, pathfinder.global_position)
+		var path_hash = _hash_path(pathfinder.current_path, pathfinder.path_index, pathfinder.global_position)
 		
 		if not cached_dynamic_paths.has(pathfinder) or cached_dynamic_paths[pathfinder] != path_hash:
 			cached_dynamic_paths[pathfinder] = path_hash
@@ -192,17 +187,16 @@ func _batch_pathfinders():
 
 func _batch_pathfinders_path(pathfinder):
 		# Batch path lines
-		var path = pathfinder.get_current_path()
-		if path.size() > 1:
-			for i in range(path.size() - 1):
-				var start = path[i]
-				var end = path[i + 1]
+		if pathfinder.current_path.size() > 1:
+			for i in range(pathfinder.current_path.size() - 1):
+				var start = pathfinder.current_path[i]
+				var end = pathfinder.current_path[i + 1]
 				var segment_color = path_color if i >= pathfinder.path_index else Color.GRAY
 				batched_path_lines.append([start, end, segment_color])
 			
 			# Batch waypoint circles
-			for i in range(path.size()):
-				var point = path[i]
+			for i in range(pathfinder.current_path.size()):
+				var point = pathfinder.current_path[i]
 				var waypoint_color = Color.WHITE if i == pathfinder.path_index else (Color.GRAY if i < pathfinder.path_index else path_color)
 				batched_circles.append([point, 5.0, waypoint_color])
 		
@@ -233,15 +227,6 @@ func _draw_systems():
 				var start = points[i]
 				var end = points[(i + 1) % points.size()]
 				draw_line(start, end, system_bounds_color, 2.0)
-		
-		# Draw grid if enabled (this is expensive, keep it optional)
-		if draw_grid and system.grid_manager.grid.size() > 0:
-			var i = 0
-			for pos in system.grid_manager.grid.keys():
-				if i % grid_sample_rate == 0:
-					var color = grid_clear_color if system.grid_manager.grid[pos] else grid_blocked_color
-					draw_circle(pos, 2.0, color)
-				i += 1
 
 func _draw_batched_obstacles():
 	# Draw all obstacle polygons in batches

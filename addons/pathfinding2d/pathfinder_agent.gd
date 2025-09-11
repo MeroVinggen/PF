@@ -23,7 +23,6 @@ signal path_recalculated()
 @onready var agent_full_size: float = agent_radius + agent_buffer
 
 var system: PathfinderSystem
-var validator: PathValidator
 var current_path: PackedVector2Array = PackedVector2Array()
 var target_position: Vector2
 var path_index: int = 0
@@ -47,8 +46,8 @@ func _exit_tree():
 	if system and not Engine.is_editor_hint():
 		system.unregister_pathfinder(self)
 
-func _recalculate_or_find_alternative():
-	if validator.is_circle_position_unsafe(target_position, agent_full_size):
+func recalculate_or_find_alternative():
+	if PathfindingUtils.is_circle_position_unsafe(system, target_position, agent_full_size):
 		consecutive_failed_recalcs = 0
 		return
 	
@@ -67,7 +66,7 @@ func _recalculate_or_find_alternative():
 		for angle in angles:
 			var offset = Vector2(cos(angle), sin(angle)) * (agent_full_size * PathfindingConstants.ALTERNATIVE_POSITION_RADIUS_MULTIPLIER)
 			var test_pos = target_position + offset
-			if _is_point_in_bounds(test_pos) and not validator.is_circle_position_unsafe(test_pos, agent_full_size):
+			if PathfindingUtils.is_point_in_polygon(test_pos, system.bounds_polygon) and not PathfindingUtils.is_circle_position_unsafe(system, test_pos, agent_full_size):
 				system.array_pool.return_packedVector2_array(current_path)
 				path = system.find_path_for_circle(global_position, test_pos, agent_full_size, mask)
 				if not path.is_empty():
@@ -94,9 +93,6 @@ func _pause_and_retry():
 			print("Retry successful")
 	)
 
-func _is_point_in_bounds(point: Vector2) -> bool:
-	return PathfindingUtils.is_point_in_polygon(point, system.bounds_polygon)
-
 func find_path_to(destination: Vector2) -> bool:
 	if not system:
 		push_error("pathfinding system should be set for pathfinder")
@@ -107,7 +103,7 @@ func find_path_to(destination: Vector2) -> bool:
 	
 	# If destination is unsafe, find closest safe point
 	var safe_destination = destination
-	if validator.is_circle_position_unsafe(destination, agent_full_size):
+	if PathfindingUtils.is_circle_position_unsafe(system, destination, agent_full_size):
 		print("Destination is inside obstacle, finding closest safe point...")
 		safe_destination = system._find_closest_safe_point(destination, agent_full_size)
 		
@@ -130,23 +126,20 @@ func get_next_waypoint() -> Vector2:
 	var next_point = current_path[path_index]
 	
 	# Check if this waypoint is now unsafe
-	if validator.is_circle_position_unsafe(next_point, agent_full_size):
-		print("UNSAFE")
+	if PathfindingUtils.is_circle_position_unsafe(system, next_point, agent_full_size):
 		# First try: find a close safe alternative without full recalculation
 		var safe_alternative = system._find_closest_safe_point(next_point, agent_full_size)
 		
 		if safe_alternative != Vector2.INF and next_point.distance_to(safe_alternative) < agent_full_size * 3:
-			if validator.is_safe_circle_path(global_position, safe_alternative, agent_full_size):
+			if PathfindingUtils.is_safe_circle_path(system, global_position, safe_alternative, agent_full_size):
 				current_path[path_index] = safe_alternative
 				return safe_alternative
 		
 		# If no safe path to alternative OR large deviation - trigger full recalculation
-		_recalculate_or_find_alternative()
+		recalculate_or_find_alternative()
 		if path_index < current_path.size():
 			return current_path[path_index]
 		return Vector2.INF
-	else:
-		print("SAFE")
 	
 	return next_point
 
@@ -178,18 +171,6 @@ func _on_destination_reached():
 	if system:
 		system.spatial_partition.update_agent(self)
 		last_spatial_position = global_position
-
-func get_current_path() -> PackedVector2Array:
-	return current_path
-
-func is_path_valid() -> bool:
-	if not validator:
-		return false
-	return validator.is_path_safe(current_path, global_position, path_index, agent_full_size)
-
-func recalculate_path():
-	if is_moving:
-		_recalculate_or_find_alternative()
 
 func stop_movement():
 	is_moving = false

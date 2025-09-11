@@ -141,7 +141,7 @@ func get_agents_near_obstacle_and_trigger_path_recalc(obstacle: PathfinderObstac
 				if agent.global_position.distance_to(obstacle.global_position) >= obstacle.cached_max_radius + agent.agent_radius + agent.agent_buffer + 5:
 					continue
 				
-				agent._recalculate_or_find_alternative()
+				agent.recalculate_or_find_alternative()
 	system.array_pool.return_vector2i_array(obstacle_sectors)
 
 func _get_agent_sectors(agent: PathfinderAgent) -> Array[Vector2i]:

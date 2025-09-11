@@ -10,7 +10,6 @@ class_name PathfinderSystem
 ])
 
 @export var grid_size: float = 25.0
-@export var auto_invalidate_paths: bool = true
 @export var pathfinders: Array[PathfinderAgent] = []
 @export var obstacles: Array[PathfinderObstacle] = []
 
@@ -35,8 +34,6 @@ class_name PathfinderSystem
 @export_group("Batch Update Settings")
 ## Frame rate for processing batched updates. Higher = more responsive to obstacle changes but uses more CPU. Lower = less responsive but better performance. Only if obstacles move very fast and you need instant path reactions. For most games, even 30fps batching is perfectly fine. (Restart required)
 @export var batch_update_fps: int = 30
-
-@onready var shared_validator: PathValidator = PathValidator.new(self)
 
 var spatial_partition: SpatialPartition
 var grid_manager: GridManager
@@ -93,8 +90,8 @@ func _register_initial_obstacles() -> void:
 
 func _invalidate_affected_paths():
 	for pathfinder in pathfinders:
-		if pathfinder.is_moving and not pathfinder.is_path_valid():
-			pathfinder.recalculate_path()
+		if pathfinder.is_moving and not PathfindingUtils.is_path_safe(pathfinder.system, pathfinder.current_path, pathfinder.global_position, pathfinder.path_index, pathfinder.agent_full_size):
+			pathfinder._recalculate_or_find_alternative()
 
 func register_pathfinder(pathfinder: PathfinderAgent):
 	if pathfinder not in pathfinders:
@@ -104,7 +101,6 @@ func register_pathfinder(pathfinder: PathfinderAgent):
 
 func _prepare_registered_pathfinder(pathfinder: PathfinderAgent):
 	pathfinder.system = self
-	pathfinder.validator = shared_validator
 	spatial_partition.add_agent(pathfinder)
 
 func unregister_pathfinder(pathfinder: PathfinderAgent):
@@ -152,7 +148,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float) -> Ve
 			var candidate: Vector2 = unsafe_pos + direction * test_distance
 			
 			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
-			   not astar_pathfinding._is_circle_position_unsafe(candidate, agent_full_size):
+			   not PathfindingUtils.is_circle_position_unsafe(self, candidate, agent_full_size):
 				candidates.append(candidate)
 	
 	array_pool.return_obstacles_array(containing_obstacles)
@@ -186,7 +182,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float) -> Ve
 			
 			# Must be within bounds and not unsafe
 			if PathfindingUtils.is_point_in_polygon(test_pos, bounds_polygon) and \
-			   not astar_pathfinding._is_circle_position_unsafe(test_pos, agent_full_size):
+			   not PathfindingUtils.is_circle_position_unsafe(self, test_pos, agent_full_size):
 				print("Fallback found safe point at: ", test_pos)
 				array_pool.return_vector2_array(candidates)
 				return test_pos
@@ -240,7 +236,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 			
 			# Verify this candidate is good
 			if PathfindingUtils.is_point_in_polygon(safe_candidate, bounds_polygon) and \
-			   not astar_pathfinding._is_circle_position_unsafe(safe_candidate, agent_full_size):
+			   not PathfindingUtils.is_circle_position_unsafe(self, safe_candidate, agent_full_size):
 				var distance = point.distance_to(safe_candidate)
 				if distance < closest_distance:
 					closest_distance = distance
@@ -262,7 +258,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		for dist in test_distances:
 			var candidate = point + direction * dist
 			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
-			   not astar_pathfinding._is_circle_position_unsafe(candidate, agent_full_size):
+			   not PathfindingUtils.is_circle_position_unsafe(self, candidate, agent_full_size):
 				print("Radial approach found safe point at distance: ", dist)
 				return candidate
 		
@@ -274,7 +270,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 			for dist in test_distances:
 				var candidate = point + dir * dist
 				if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
-				   not astar_pathfinding._is_circle_position_unsafe(candidate, agent_full_size):
+				   not PathfindingUtils.is_circle_position_unsafe(self, candidate, agent_full_size):
 					print("Cardinal direction found safe point: ", candidate)
 					return candidate
 	

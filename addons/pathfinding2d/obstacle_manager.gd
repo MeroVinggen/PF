@@ -13,8 +13,8 @@ func register_obstacle(obstacle: PathfinderObstacle):
 		return
 	
 	system.obstacles.append(obstacle)
-	system.spatial_partition.add_obstacle(obstacle)
 	_prepare_registered_obstacle(obstacle)
+	system.spatial_partition.add_obstacle(obstacle)
 
 func register_initial_obstacle(obstacle) -> void:
 	system.spatial_partition.add_obstacle(obstacle)

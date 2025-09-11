@@ -89,7 +89,7 @@ func make_step(delta: float) -> void:
 	#agent_stuck.emit()
 	#stuck_timer = 0.0
 	#pathfinder.consecutive_failed_recalcs = 0
-	#pathfinder._recalculate_or_find_alternative()
+	#pathfinder.recalculate_or_find_alternative()
 
 #func is_stuck() -> bool:
 	#return stuck_timer >= stuck_time_threshold

@@ -15,9 +15,9 @@ func _init(pathfinder_system: PathfinderSystem, node_pool: PathNodePool):
 	system = pathfinder_system
 	pool = node_pool
 
-func find_path_for_circle(start: Vector2, end: Vector2, agent_full_size: float = PathfindingConstants.SAFETY_MARGIN) -> PackedVector2Array:
+func find_path_for_circle(start: Vector2, end: Vector2, agent_full_size: float = PathfindingConstants.SAFETY_MARGIN, mask: int = 1) -> PackedVector2Array:
 	print("=== PATHFINDING REQUEST ===")
-	print("Start: ", start, " End: ", end, " agent_full_size: ", agent_full_size)
+	print("Start: ", start, " End: ", end, " agent_full_size: ", agent_full_size, " mask: ", mask)
 	print("Total obstacles: ", system.obstacles.size())
 	
 	# Log all obstacle positions and states
@@ -28,12 +28,12 @@ func find_path_for_circle(start: Vector2, end: Vector2, agent_full_size: float =
 		print("Obstacle ", i, ": pos=", obs.global_position, " static=", obs.is_static, " poly=", world_poly)
 		obs.system.array_pool.return_packedVector2_array(world_poly)
 	
-	if PathfindingUtils.is_safe_circle_path(system, start, end, agent_full_size):
+	if PathfindingUtils.is_safe_circle_path(system, start, end, agent_full_size, mask):
 		print("Using direct path")
 		return PackedVector2Array([start, end])
 	
-	var start_grid = _find_safe_circle_position(start, agent_full_size)
-	var end_grid = _find_safe_circle_position(end, agent_full_size)
+	var start_grid = _find_safe_circle_position(start, agent_full_size, mask)
+	var end_grid = _find_safe_circle_position(end, agent_full_size, mask)
 	
 	print("Start grid pos: ", start_grid, " (safe: ", start_grid != Vector2.INF, ")")
 	print("End grid pos: ", end_grid, " (safe: ", end_grid != Vector2.INF, ")")
@@ -42,17 +42,17 @@ func find_path_for_circle(start: Vector2, end: Vector2, agent_full_size: float =
 		print("No safe grid positions found - PATH BLOCKED")
 		return PackedVector2Array()
 	
-	var path = _a_star_pathfind_circle(start_grid, end_grid, agent_full_size)
+	var path = _a_star_pathfind_circle(start_grid, end_grid, agent_full_size, mask)
 	
 	# coneection to last point
 	if path.size() > 0 and path[-1].distance_to(end) > agent_full_size:
-		if PathfindingUtils.is_safe_circle_path(system, path[-1], end, agent_full_size):
+		if PathfindingUtils.is_safe_circle_path(system, path[-1], end, agent_full_size, mask):
 			path.append(end)
 	
 	print("A* result: ", path.size(), " waypoints")
 	
 	if path.size() > 2:
-		path = _smooth_circle_path(path, agent_full_size)
+		path = _smooth_circle_path(path, agent_full_size, mask)
 		print("Smoothed to: ", path.size(), " waypoints")
 	
 	_cleanup_path_nodes()
@@ -71,18 +71,18 @@ func _cleanup_path_nodes():
 	# Return nodes to pool
 	pool.return_nodes(all_nodes)
 
-func _find_safe_circle_position(pos: Vector2, agent_full_size: float) -> Vector2:
+func _find_safe_circle_position(pos: Vector2, agent_full_size: float, mask: int) -> Vector2:
 	print("DEBUG: Finding safe position for: ", pos)
 	
 	# First try the exact position
-	if not PathfindingUtils.is_circle_position_unsafe(system, pos, agent_full_size):
+	if not PathfindingUtils.is_circle_position_unsafe(system, pos, agent_full_size, mask):
 		print("DEBUG: Exact position is safe")
 		return pos
 	
 	print("DEBUG: Exact position is unsafe, trying snapped")
 	# Try snapped grid position
 	var snapped = system.grid_manager.snap_to_grid(pos)
-	if not PathfindingUtils.is_circle_position_unsafe(system, snapped, agent_full_size):
+	if not PathfindingUtils.is_circle_position_unsafe(system, snapped, agent_full_size, mask):
 		print("DEBUG: Snapped position is safe: ", snapped)
 		return snapped
 	
@@ -104,18 +104,18 @@ func _find_safe_circle_position(pos: Vector2, agent_full_size: float) -> Vector2
 			var test_pos = pos + offset
 			
 			# Must be within bounds and not unsafe
-			if PathfindingUtils.is_point_in_polygon(test_pos, system.bounds_polygon) and not PathfindingUtils.is_circle_position_unsafe(system, test_pos, agent_full_size):
+			if PathfindingUtils.is_point_in_polygon(test_pos, system.bounds_polygon) and not PathfindingUtils.is_circle_position_unsafe(system, test_pos, agent_full_size, mask):
 				return test_pos
 	
 	# Final fallback: try grid points in expanded area
 	for grid_pos in system.grid_manager.grid.keys():
 		if pos.distance_to(grid_pos) <= max_search_radius:
-			if not PathfindingUtils.is_circle_position_unsafe(system, grid_pos, agent_full_size):
+			if not PathfindingUtils.is_circle_position_unsafe(system, grid_pos, agent_full_size, mask):
 				return grid_pos
 	
 	return Vector2.INF
 
-func _a_star_pathfind_circle(start: Vector2, goal: Vector2, agent_full_size: float) -> PackedVector2Array:
+func _a_star_pathfind_circle(start: Vector2, goal: Vector2, agent_full_size: float, mask: int) -> PackedVector2Array:
 	open_set.clear()
 	closed_set.clear()
 	came_from.clear()
@@ -162,11 +162,11 @@ func _a_star_pathfind_circle(start: Vector2, goal: Vector2, agent_full_size: flo
 			if closed_set.has(neighbor_pos):
 				continue
 			
-			if PathfindingUtils.is_circle_position_unsafe(system, neighbor_pos, agent_full_size):
+			if PathfindingUtils.is_circle_position_unsafe(system, neighbor_pos, agent_full_size, mask):
 				unsafe_neighbors += 1
 				continue
 			
-			if not PathfindingUtils.is_safe_circle_path(system, current.position, neighbor_pos, agent_full_size):
+			if not PathfindingUtils.is_safe_circle_path(system, current.position, neighbor_pos, agent_full_size, mask):
 				path_blocked_neighbors += 1
 				continue
 			
@@ -238,7 +238,7 @@ func _get_adaptive_neighbors(pos: Vector2, agent_full_size: float) -> Array[Vect
 	
 	return neighbors
 
-func _smooth_circle_path(path: PackedVector2Array, agent_full_size: float) -> PackedVector2Array:
+func _smooth_circle_path(path: PackedVector2Array, agent_full_size: float, mask: int) -> PackedVector2Array:
 	if path.size() <= 2:
 		return path
 	
@@ -252,7 +252,7 @@ func _smooth_circle_path(path: PackedVector2Array, agent_full_size: float) -> Pa
 		var farthest_safe = current_index + 1
 		
 		for i in range(current_index + 2, path.size()):
-			if PathfindingUtils.is_safe_circle_path(system, path[current_index], path[i], agent_full_size):
+			if PathfindingUtils.is_safe_circle_path(system, path[current_index], path[i], agent_full_size, mask):
 				farthest_safe = i
 			else:
 				break

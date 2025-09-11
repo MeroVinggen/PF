@@ -44,8 +44,6 @@ var array_pool: GenericArrayPool
 var batch_manager: BatchUpdateManager
 var request_queue: PathfindingRequestQueue
 
-var current_pathfinder_mask: int = 1
-
 func _ready():
 	path_node_pool = PathNodePool.new(pool_size, pool_allow_expand, pool_expand_step)
 	array_pool = GenericArrayPool.new(array_pool_size, array_pool_allow_expand, array_pool_expand_step)
@@ -90,7 +88,7 @@ func _register_initial_obstacles() -> void:
 
 func _invalidate_affected_paths():
 	for pathfinder in pathfinders:
-		if pathfinder.is_moving and not PathfindingUtils.is_path_safe(pathfinder.system, pathfinder.current_path, pathfinder.global_position, pathfinder.path_index, pathfinder.agent_full_size):
+		if pathfinder.is_moving and not PathfindingUtils.is_path_safe(pathfinder.system, pathfinder.current_path, pathfinder.global_position, pathfinder.path_index, pathfinder.agent_full_size, pathfinder.mask):
 			pathfinder._recalculate_or_find_alternative()
 
 func register_pathfinder(pathfinder: PathfinderAgent):
@@ -108,12 +106,8 @@ func unregister_pathfinder(pathfinder: PathfinderAgent):
 	pathfinder.system = null
 	spatial_partition.remove_agent(pathfinder)
 
-func find_path_for_circle(start: Vector2, end: Vector2, agent_full_size: float = 2.0, mask: int = 1) -> PackedVector2Array:
-	current_pathfinder_mask = mask
-	return astar_pathfinding.find_path_for_circle(start, end, agent_full_size)
-
 # Find the closest safe point outside all obstacles for a given unsafe position
-func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float) -> Vector2:
+func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float, mask: int) -> Vector2:
 	# First, find which obstacle(s) contain this point
 	var containing_obstacles: Array[PathfinderObstacle] = array_pool.get_obstacle_array()
 	var nearby_obstacles = spatial_partition.get_obstacles_near_point(unsafe_pos, agent_full_size + PathfindingConstants.CLEARANCE_BASE_ADDITION)
@@ -125,7 +119,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float) -> Ve
 	if containing_obstacles.is_empty():
 		print("Point not inside obstacle, finding safe position nearby...")
 		array_pool.return_obstacles_array(containing_obstacles)
-		return astar_pathfinding._find_safe_circle_position(unsafe_pos, agent_full_size)
+		return astar_pathfinding._find_safe_circle_position(unsafe_pos, agent_full_size, mask)
 	
 	print("Point is inside ", containing_obstacles.size(), " obstacle(s)")
 	
@@ -133,7 +127,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float) -> Ve
 	var candidates: Array[Vector2] = array_pool.get_vector2_array()
 	
 	for obstacle in containing_obstacles:
-		var safe_pos = _find_closest_point_outside_obstacle(unsafe_pos, obstacle, agent_full_size)
+		var safe_pos = _find_closest_point_outside_obstacle(unsafe_pos, obstacle, agent_full_size, mask)
 		if safe_pos != Vector2.INF:
 			candidates.append(safe_pos)
 		
@@ -148,7 +142,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float) -> Ve
 			var candidate: Vector2 = unsafe_pos + direction * test_distance
 			
 			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
-			   not PathfindingUtils.is_circle_position_unsafe(self, candidate, agent_full_size):
+			   not PathfindingUtils.is_circle_position_unsafe(self, candidate, agent_full_size, mask):
 				candidates.append(candidate)
 	
 	array_pool.return_obstacles_array(containing_obstacles)
@@ -182,7 +176,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float) -> Ve
 			
 			# Must be within bounds and not unsafe
 			if PathfindingUtils.is_point_in_polygon(test_pos, bounds_polygon) and \
-			   not PathfindingUtils.is_circle_position_unsafe(self, test_pos, agent_full_size):
+			   not PathfindingUtils.is_circle_position_unsafe(self, test_pos, agent_full_size, mask):
 				print("Fallback found safe point at: ", test_pos)
 				array_pool.return_vector2_array(candidates)
 				return test_pos
@@ -191,7 +185,7 @@ func _find_closest_safe_point(unsafe_pos: Vector2, agent_full_size: float) -> Ve
 	array_pool.return_vector2_array(candidates)
 	return Vector2.INF
 
-func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderObstacle, agent_full_size: float) -> Vector2:
+func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderObstacle, agent_full_size: float, mask: int) -> Vector2:
 	"""Find closest point outside a specific obstacle with better clearance"""
 	var world_poly = obstacle.get_world_polygon()
 	if world_poly.is_empty():
@@ -236,7 +230,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 			
 			# Verify this candidate is good
 			if PathfindingUtils.is_point_in_polygon(safe_candidate, bounds_polygon) and \
-			   not PathfindingUtils.is_circle_position_unsafe(self, safe_candidate, agent_full_size):
+			   not PathfindingUtils.is_circle_position_unsafe(self, safe_candidate, agent_full_size, mask):
 				var distance = point.distance_to(safe_candidate)
 				if distance < closest_distance:
 					closest_distance = distance
@@ -258,7 +252,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 		for dist in test_distances:
 			var candidate = point + direction * dist
 			if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
-			   not PathfindingUtils.is_circle_position_unsafe(self, candidate, agent_full_size):
+			   not PathfindingUtils.is_circle_position_unsafe(self, candidate, agent_full_size, mask):
 				print("Radial approach found safe point at distance: ", dist)
 				return candidate
 		
@@ -270,7 +264,7 @@ func _find_closest_point_outside_obstacle(point: Vector2, obstacle: PathfinderOb
 			for dist in test_distances:
 				var candidate = point + dir * dist
 				if PathfindingUtils.is_point_in_polygon(candidate, bounds_polygon) and \
-				   not PathfindingUtils.is_circle_position_unsafe(self, candidate, agent_full_size):
+				   not PathfindingUtils.is_circle_position_unsafe(self, candidate, agent_full_size, mask):
 					print("Cardinal direction found safe point: ", candidate)
 					return candidate
 	

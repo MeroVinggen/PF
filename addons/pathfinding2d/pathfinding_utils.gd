@@ -60,7 +60,7 @@ static func get_polygon_center(polygon: PackedVector2Array) -> Vector2:
 	
 	return sum / polygon.size()
 
-static func is_safe_circle_path(system: PathfinderSystem, start: Vector2, end: Vector2, agent_full_size: float) -> bool:
+static func is_safe_circle_path(system: PathfinderSystem, start: Vector2, end: Vector2, agent_full_size: float, mask: int) -> bool:
 	var distance = start.distance_to(end)
 	var samples = max(int(distance / (system.grid_size * PathfindingConstants.SAMPLE_DISTANCE_FACTOR)), PathfindingConstants.MIN_PATH_SAMPLES)
 	
@@ -73,21 +73,21 @@ static func is_safe_circle_path(system: PathfinderSystem, start: Vector2, end: V
 		var t = float(i) / float(samples)
 		var test_pos = start.lerp(end, t)
 		
-		if is_position_unsafe_with_obstacles(system, test_pos, agent_full_size, path_obstacles):
+		if is_position_unsafe_with_obstacles(system, test_pos, agent_full_size, path_obstacles, mask):
 			system.array_pool.return_obstacles_array(path_obstacles)
 			return false
 	
 	system.array_pool.return_obstacles_array(path_obstacles)
 	return true
 
-static func is_position_unsafe_with_obstacles(system: PathfinderSystem, pos: Vector2, agent_full_size: float, obstacles: Array[PathfinderObstacle]) -> bool:
+static func is_position_unsafe_with_obstacles(system: PathfinderSystem, pos: Vector2, agent_full_size: float, obstacles: Array[PathfinderObstacle], mask: int) -> bool:
 	if not PathfindingUtils.is_point_in_polygon(pos, system.bounds_polygon):
 		return true
 	
 	for obstacle in obstacles:
 		if obstacle.disabled:
 			continue
-		if not ((obstacle.layer & system.current_pathfinder_mask) != 0):
+		if not ((obstacle.layer & mask) != 0):
 			continue
 		var world_poly = obstacle.get_world_polygon()
 		if world_poly.is_empty():
@@ -136,7 +136,7 @@ static func distance_point_to_line_segment(point: Vector2, line_start: Vector2, 
 	
 	return point.distance_to(projection)
 
-static func is_circle_position_unsafe(system: PathfinderSystem, pos: Vector2, agent_full_size: float) -> bool:
+static func is_circle_position_unsafe(system: PathfinderSystem, pos: Vector2, agent_full_size: float, mask: int) -> bool:
 	#print_stack()
 	
 	# Use spatial partition instead of system's method
@@ -147,7 +147,7 @@ static func is_circle_position_unsafe(system: PathfinderSystem, pos: Vector2, ag
 	for obstacle: PathfinderObstacle in nearby_obstacles:
 		if obstacle.disabled:
 			continue
-		if not ((obstacle.layer & system.current_pathfinder_mask) != 0):
+		if not ((obstacle.layer & mask) != 0):
 			continue
 		var world_poly = obstacle.get_world_polygon()
 		if world_poly.is_empty():
@@ -161,20 +161,20 @@ static func is_circle_position_unsafe(system: PathfinderSystem, pos: Vector2, ag
 	
 	return false
 
-static func is_path_safe(system: PathfinderSystem, path: PackedVector2Array, current_pos: Vector2, path_index: int, agent_full_size: float) -> bool:
+static func is_path_safe(system: PathfinderSystem, path: PackedVector2Array, current_pos: Vector2, path_index: int, agent_full_size: float, mask: int) -> bool:
 	if not system or path.is_empty() or path_index >= path.size():
 		return false
 	
 	# Check current position
-	if PathfindingUtils.is_circle_position_unsafe(system, current_pos, agent_full_size):
+	if PathfindingUtils.is_circle_position_unsafe(system, current_pos, agent_full_size, mask):
 		return false
 	
 	# Check next waypoint
 	if path_index < path.size():
 		var next_waypoint = path[path_index]
-		if PathfindingUtils.is_circle_position_unsafe(system, next_waypoint, agent_full_size):
+		if PathfindingUtils.is_circle_position_unsafe(system, next_waypoint, agent_full_size, mask):
 			return false
-		if not PathfindingUtils.is_safe_circle_path(system, current_pos, next_waypoint, agent_full_size):
+		if not PathfindingUtils.is_safe_circle_path(system, current_pos, next_waypoint, agent_full_size, mask):
 			return false
 	
 	return true

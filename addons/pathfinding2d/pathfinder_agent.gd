@@ -47,7 +47,7 @@ func _exit_tree():
 		system.unregister_pathfinder(self)
 
 func recalculate_or_find_alternative():
-	if PathfindingUtils.is_circle_position_unsafe(system, target_position, agent_full_size):
+	if PathfindingUtils.is_circle_position_unsafe(system, target_position, agent_full_size, mask):
 		consecutive_failed_recalcs = 0
 		return
 	
@@ -58,7 +58,7 @@ func recalculate_or_find_alternative():
 		return
 	
 	system.array_pool.return_packedVector2_array(current_path)
-	var path = system.find_path_for_circle(global_position, target_position, agent_full_size, mask)
+	var path = system.astar_pathfinding.find_path_for_circle(global_position, target_position, agent_full_size, mask)
 	
 	if path.is_empty():
 		# Try nearby positions around target
@@ -66,9 +66,9 @@ func recalculate_or_find_alternative():
 		for angle in angles:
 			var offset = Vector2(cos(angle), sin(angle)) * (agent_full_size * PathfindingConstants.ALTERNATIVE_POSITION_RADIUS_MULTIPLIER)
 			var test_pos = target_position + offset
-			if PathfindingUtils.is_point_in_polygon(test_pos, system.bounds_polygon) and not PathfindingUtils.is_circle_position_unsafe(system, test_pos, agent_full_size):
+			if PathfindingUtils.is_point_in_polygon(test_pos, system.bounds_polygon) and not PathfindingUtils.is_circle_position_unsafe(system, test_pos, agent_full_size, mask):
 				system.array_pool.return_packedVector2_array(current_path)
-				path = system.find_path_for_circle(global_position, test_pos, agent_full_size, mask)
+				path = system.astar_pathfinding.find_path_for_circle(global_position, test_pos, agent_full_size, mask)
 				if not path.is_empty():
 					target_position = test_pos
 					break
@@ -103,9 +103,9 @@ func find_path_to(destination: Vector2) -> bool:
 	
 	# If destination is unsafe, find closest safe point
 	var safe_destination = destination
-	if PathfindingUtils.is_circle_position_unsafe(system, destination, agent_full_size):
+	if PathfindingUtils.is_circle_position_unsafe(system, destination, agent_full_size, mask):
 		print("Destination is inside obstacle, finding closest safe point...")
-		safe_destination = system._find_closest_safe_point(destination, agent_full_size)
+		safe_destination = system._find_closest_safe_point(destination, agent_full_size, mask)
 		
 		if safe_destination == Vector2.INF:
 			print("Could not find any safe point near destination")
@@ -126,12 +126,12 @@ func get_next_waypoint() -> Vector2:
 	var next_point = current_path[path_index]
 	
 	# Check if this waypoint is now unsafe
-	if PathfindingUtils.is_circle_position_unsafe(system, next_point, agent_full_size):
+	if PathfindingUtils.is_circle_position_unsafe(system, next_point, agent_full_size, mask):
 		# First try: find a close safe alternative without full recalculation
-		var safe_alternative = system._find_closest_safe_point(next_point, agent_full_size)
+		var safe_alternative = system._find_closest_safe_point(next_point, agent_full_size, mask)
 		
 		if safe_alternative != Vector2.INF and next_point.distance_to(safe_alternative) < agent_full_size * 3:
-			if PathfindingUtils.is_safe_circle_path(system, global_position, safe_alternative, agent_full_size):
+			if PathfindingUtils.is_safe_circle_path(system, global_position, safe_alternative, agent_full_size, mask):
 				current_path[path_index] = safe_alternative
 				return safe_alternative
 		

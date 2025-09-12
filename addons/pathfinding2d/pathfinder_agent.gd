@@ -32,7 +32,7 @@ var pending_pathfinding_request: bool = false
 var consecutive_failed_recalcs: int = 0
 
 var last_spatial_position: Vector2 = Vector2.INF
-var spatial_update_threshold: float = 20.0
+var spatial_update_threshold: float = 0.0
 
 # sgould be called by system or registration the agent
 func register(sys: PathfinderSystem) -> void:

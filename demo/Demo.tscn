@@ -13,29 +13,34 @@ script = ExtResource("1_uqdso")
 script = ExtResource("2_eaos1")
 bounds_polygon = PackedVector2Array(-500, -500, 500, -500, 500, 500, -500, 500)
 pathfinders = [NodePath("../PathfinderAgent")]
-obstacles = [NodePath("../PathfinderObstacleS"), NodePath("../PathfinderObstacleD")]
+obstacles = [NodePath("../PathfinderObstacleS"), NodePath("../PathfinderObstacleD"), NodePath("../PathfinderObstacleS2")]
 metadata/_custom_type_script = "uid://iy0w45a50gju"
 
 [node name="PathfinderObstacleS" type="Node2D" parent="."]
-position = Vector2(265, 268)
+position = Vector2(235, 270)
 script = ExtResource("3_eaos1")
-obstacle_polygon = PackedVector2Array(-25, -25, 25, -25, 25, 25, -25, 25)
+obstacle_polygon = PackedVector2Array(-187, -23, 25, -25, 25, 25, -25, 25)
+metadata/_custom_type_script = "uid://dsw8ahtan3evv"
+
+[node name="PathfinderObstacleS2" type="Node2D" parent="."]
+position = Vector2(415, 274)
+script = ExtResource("3_eaos1")
+obstacle_polygon = PackedVector2Array(-61, -27, 102, -21, 25, 25, -25, 25)
 metadata/_custom_type_script = "uid://dsw8ahtan3evv"
 
 [node name="PathfinderObstacleD" type="Node2D" parent="."]
-position = Vector2(310, 247)
+position = Vector2(288, 285)
 script = ExtResource("3_eaos1")
 obstacle_polygon = PackedVector2Array(-12, -12, 55, -21, 37, 55, -12, 37)
 is_static = false
 metadata/_custom_type_script = "uid://dsw8ahtan3evv"
 
 [node name="PathfinderAgent" type="Node2D" parent="."]
-position = Vector2(139, 135)
+position = Vector2(467, 188)
 script = ExtResource("4_wlawv")
 metadata/_custom_type_script = "uid://c0akywfx8v7xg"
 
 [node name="PathfindingDebugRenderer" type="Node2D" parent="." node_paths=PackedStringArray("systems_to_debug")]
 script = ExtResource("5_eaos1")
 systems_to_debug = [NodePath("../PathfinderSystem")]
-draw_fps = 5.0
 metadata/_custom_type_script = "uid://dq8my7tks08qu"

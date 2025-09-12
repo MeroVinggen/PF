@@ -7,10 +7,9 @@ extends Node2D
 @onready var dynamic_obstacle = $PathfinderObstacleD
 
 func _ready():
-	print("=== Enhanced Pathfinding Demo Starting ===")
-	
-	await get_tree().process_frame
-	await get_tree().process_frame
+	print("=== Demo Starting ===")
+
+	pathfinder_system.init()
 	
 	_setup_pathfinder_signals()
 	_setup_demo_ui()

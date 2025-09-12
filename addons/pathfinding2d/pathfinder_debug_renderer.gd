@@ -68,8 +68,9 @@ func _batch_obstacles():
 	
 	for system: PathfinderSystem in systems_to_debug:
 		for obstacle: PathfinderObstacle in system.obstacles:
-	
-			if not is_instance_valid(obstacle):
+			
+			# is_inside_tree() - to fix godot leak for keeping ref in arr for removed from scene nodes
+			if not is_instance_valid(obstacle) or not obstacle.is_inside_tree():
 				continue
 			
 			# obstacles fix for the editor mode!

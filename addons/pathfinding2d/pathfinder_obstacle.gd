@@ -45,21 +45,27 @@ func _set_disabled(value: bool):
 		disabled = value
 		static_state_changed.emit(self)
 
+# sgould be called by obstacle_manager or registration the agent
+func register(sys: PathfinderSystem) -> void:
+	system = sys
+	set_physics_process(true)
+
+# sgould be called by obstacle_manager or unregistration the agent
+func unregister() -> void:
+	system = null
+	set_physics_process(false)
+
 func _ready():
 	update_interval = 1.0 / update_frequency
 
 func _physics_process(delta):
-	if Engine.is_editor_hint() or is_static or disabled or update_frequency == 0:
+	if is_static or disabled or update_frequency == 0:
 		return
 	
 	update_timer += delta
 	if update_timer >= update_interval:
 		update_timer = 0.0
 		_check_for_changes()
-
-func _exit_tree():
-	if system:
-		system.obstacle_manager.unregister_obstacle(self)
 
 func _has_changed() -> bool:
 	# pos changed
@@ -87,13 +93,9 @@ func _transforms_roughly_equal(a: Transform2D, b: Transform2D) -> bool:
 	return (a.origin.distance_to(b.origin) < pos_threshold and 
 			abs(a.get_rotation() - b.get_rotation()) < rot_threshold and
 			(a.get_scale() - b.get_scale()).length() < PathfindingConstants.TRANSFORM_SCALE_THRESHOLD)
-#var i: int = 0
+
 func _check_for_changes():
 	if _has_changed():
-		#i += 1
-		#if i >= 3:
-			#print("Obstacle at: ", global_position, " (was: ", last_position, ")")
-			#i = 0
 		_store_last_state()
 		if not is_static:
 			obstacle_changed.emit(self)

@@ -24,7 +24,7 @@ func unregister_obstacle(obstacle: PathfinderObstacle):
 	system.obstacles.erase(obstacle)
 	system.spatial_partition.remove_obstacle(obstacle)
 	dynamic_obstacles.erase(obstacle)
-	obstacle.system = null
+	obstacle.unregister()
 	
 	if obstacle.obstacle_changed.is_connected(_on_obstacle_changed):
 		obstacle.obstacle_changed.disconnect(_on_obstacle_changed)
@@ -32,7 +32,7 @@ func unregister_obstacle(obstacle: PathfinderObstacle):
 		obstacle.static_state_changed.disconnect(_on_obstacle_static_changed)
 
 func _prepare_registered_obstacle(obstacle: PathfinderObstacle):
-	obstacle.system = system
+	obstacle.register(system)
 	
 	if not obstacle.is_static and not obstacle.disabled:
 		obstacle.pos_threshold = PathfindingConstants.DYNAMIC_POSITION_THRESHOLD

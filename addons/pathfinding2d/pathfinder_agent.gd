@@ -34,26 +34,33 @@ var consecutive_failed_recalcs: int = 0
 var last_spatial_position: Vector2 = Vector2.INF
 var spatial_update_threshold: float = 20.0
 
-func _ready() -> void:
+# sgould be called by system or registration the agent
+func register(sys: PathfinderSystem) -> void:
+	system = sys
 	_updateAgentMetricsBasedOnSizeAndBuffer()
+	set_physics_process(true)
+
+# sgould be called by system or unregistration the agent
+func unregister() -> void:
+	system = null
+	set_physics_process(false)
 
 func _updateAgentMetricsBasedOnSizeAndBuffer() -> void:
+	if not system:
+		return
+	
 	agent_full_size = agent_radius + agent_buffer
-	return
-	if not system or Engine.is_editor_hint():
-		spatial_update_threshold = min(agent_full_size * 0.3, system.grid_size * 0.5)
+	spatial_update_threshold = min(agent_full_size * 0.3, system.grid_size * 0.5)
+
+# prevent errs in the editor mode
+func _ready() -> void:
+	set_physics_process(false)
 
 func _physics_process(delta: float):
-	if not system or Engine.is_editor_hint():
-		return
 	# Check if agent moved enough to warrant spatial partition update
 	if last_spatial_position.distance_to(global_position) > spatial_update_threshold:
 		system.spatial_partition.update_agent(self)
 		last_spatial_position = global_position
-
-func _exit_tree():
-	if system and not Engine.is_editor_hint():
-		system.unregister_pathfinder(self)
 
 func recalculate_or_find_alternative():
 	if PathfindingUtils.is_circle_position_unsafe(system, target_position, agent_full_size, mask):

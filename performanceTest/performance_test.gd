@@ -81,6 +81,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _setup_pathfinding_system():
+	pathfinding_system.init()
+	
 	var viewport_size = get_viewport().get_visible_rect().size
 	
 	# Set system bounds to viewport

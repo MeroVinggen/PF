@@ -44,7 +44,7 @@ var array_pool: GenericArrayPool
 var batch_manager: BatchUpdateManager
 var request_queue: PathfindingRequestQueue
 
-func _ready():
+func init():
 	path_node_pool = PathNodePool.new(pool_size, pool_allow_expand, pool_expand_step)
 	array_pool = GenericArrayPool.new(array_pool_size, array_pool_allow_expand, array_pool_expand_step)
 	
@@ -55,13 +55,16 @@ func _ready():
 	spatial_partition = SpatialPartition.new(self, grid_size * sector_size_multiplier, quadtree_max_objects, quadtree_max_levels)
 	request_queue = PathfindingRequestQueue.new(self, 3, 5.0)
 	
-	if not Engine.is_editor_hint():
-		_initialize_system()
+	_initialize_system()
+	set_physics_process(true)
+
+# prevent errs in the editor mode
+func _ready() -> void:
+	set_physics_process(false)
 
 func _physics_process(delta: float) -> void:
-	if not Engine.is_editor_hint():
-		batch_manager.process_frame(delta)
-		request_queue.process_queue()
+	batch_manager.process_frame(delta)
+	request_queue.process_queue()
 
 func _initialize_system():
 	_register_initial_pathfinders()
@@ -98,10 +101,10 @@ func register_pathfinder(pathfinder: PathfinderAgent):
 	_prepare_registered_pathfinder(pathfinder)
 
 func _prepare_registered_pathfinder(pathfinder: PathfinderAgent):
-	pathfinder.system = self
+	pathfinder.register(self)
 	spatial_partition.add_agent(pathfinder)
 
 func unregister_pathfinder(pathfinder: PathfinderAgent):
 	pathfinders.erase(pathfinder)
-	pathfinder.system = null
+	pathfinder.unregister()
 	spatial_partition.remove_agent(pathfinder)

@@ -51,6 +51,7 @@ func return_node(node: PathNode) -> void:
 	node.g_score = 0.0
 	node.h_score = 0.0
 	node.f_score = 0.0
+	node.parent = null
 	
 	# Only return to pool if we haven't exceeded our limits
 	if available_nodes.size() < pool_size:

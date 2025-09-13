@@ -2,6 +2,7 @@
 extends RefCounted
 class_name PathNode
 
+var parent: PathNode = null
 var position: Vector2
 var g_score: float
 var f_score: float

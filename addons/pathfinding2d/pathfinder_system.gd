@@ -89,10 +89,10 @@ func _register_initial_obstacles() -> void:
 		obstacle_manager.register_initial_obstacle(obstacle)
 	print("=== END INITIAL OBSTACLES ===")
 
-func _invalidate_affected_paths():
-	for pathfinder in pathfinders:
-		if pathfinder.is_moving and not PathfindingUtils.is_path_safe(pathfinder.system, pathfinder.current_path, pathfinder.global_position, pathfinder.path_index, pathfinder.agent_full_size, pathfinder.mask):
-			pathfinder._recalculate_or_find_alternative()
+#func _invalidate_affected_paths():
+	#for pathfinder in pathfinders:
+		#if pathfinder.is_moving and not PathfindingUtils.is_path_safe(pathfinder.system, pathfinder.current_path, pathfinder.global_position, pathfinder.path_index, pathfinder.agent_full_size, pathfinder.mask):
+			#pathfinder._recalculate_or_find_alternative()
 
 func register_pathfinder(pathfinder: PathfinderAgent):
 	if pathfinder not in pathfinders:

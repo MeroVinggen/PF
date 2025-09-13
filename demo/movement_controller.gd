@@ -7,6 +7,7 @@ signal agent_stuck()
 signal agent_unstuck()
 
 @export var movement_speed: float = 200.0
+@export var arrival_distance: float = 5.0
 
 # Stuck prevention settings
 @export var stuck_threshold: float = 2.0
@@ -25,38 +26,49 @@ var distance: float
 var last_positions: Array[Vector2] = []
 var stuck_timer: float = 0.0
 
+var is_moving: bool = false
+
 func _ready():
 	if not target_node:
 		target_node = get_parent()
 
 func setup(pathfinder_ref: PathfinderAgent, node_to_move: Node2D = null):
 	pathfinder = pathfinder_ref
+	pathfinder.path_found.connect(_on_path_found)
+	pathfinder.destination_reached.connect(_on_destination_reached)
 	if node_to_move:
 		target_node = node_to_move
+
 
 func _physics_process(delta: float) -> void:
 	if not pathfinder or not target_node:
 		return
 		
-	if pathfinder.is_moving:
+	if is_moving:
 		#_update_stuck_detection(delta)
 		_follow_path(delta)
 
+func _on_path_found(_path: PackedVector2Array):
+	is_moving = true
+	pathfinder.is_moving = is_moving
+
+func _on_destination_reached():
+	is_moving = false
+
 func _follow_path(delta):
-	var update_current_target = pathfinder.get_next_waypoint()
+	var update_current_target = pathfinder.get_next_waypoint_with_auto_rebuilt()
+	
+	if update_current_target == Vector2.ZERO or update_current_target == Vector2.INF:
+		is_moving = false
+		return
 	
 	if update_current_target == current_target:
 		distance = pathfinder.global_position.distance_to(current_target)
 		make_step(delta)
 		return
 	
-	current_target = update_current_target
-	
-	if current_target == Vector2.INF:
-		destination_reached.emit()
-		return
-	
 	# target point been updated - recalc movement data
+	current_target = update_current_target
 	direction = (current_target - pathfinder.global_position).normalized()
 	distance = pathfinder.global_position.distance_to(current_target)
 	make_step(delta)
@@ -64,7 +76,7 @@ func _follow_path(delta):
 
 func make_step(delta: float) -> void:
 	# Close enough to waypoint
-	if distance < 5.0:
+	if distance < arrival_distance:
 		pathfinder.advance_to_next_waypoint()
 	else:
 		pathfinder.global_position += direction * movement_speed * delta

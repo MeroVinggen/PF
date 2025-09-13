@@ -19,7 +19,6 @@ metadata/_custom_type_script = "uid://iy0w45a50gju"
 [node name="PathfindingDebugRenderer" type="Node2D" parent="." node_paths=PackedStringArray("systems_to_debug")]
 script = ExtResource("3_yjtch")
 systems_to_debug = [NodePath("../PathfinderSystem")]
-draw_fps = 30
 metadata/_custom_type_script = "uid://dq8my7tks08qu"
 
 [node name="UIContainer" type="Control" parent="."]

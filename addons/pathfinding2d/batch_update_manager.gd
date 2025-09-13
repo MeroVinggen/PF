@@ -24,9 +24,6 @@ func queue_obstacle_update(obstacle: PathfinderObstacle, update_type: String):
 	
 	pending_updates[obstacle][update_type] = true
 
-func queue_grid_update():
-	pending_updates["grid_update"] = true
-
 func queue_path_recalculation():
 	pending_updates["path_recalc"] = true
 
@@ -59,8 +56,6 @@ func _process_batch():
 				grid_needs_update = true
 				paths_need_recalc = true
 		
-		elif item == "grid_update":
-			grid_needs_update = true
 		elif item == "path_recalc":
 			paths_need_recalc = true
 	

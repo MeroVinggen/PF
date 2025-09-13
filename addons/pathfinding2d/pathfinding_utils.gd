@@ -158,21 +158,16 @@ static func is_circle_position_unsafe(system: PathfinderSystem, pos: Vector2, ag
 	return false
 
 static func is_path_safe(system: PathfinderSystem, path: PackedVector2Array, current_pos: Vector2, path_index: int, agent_full_size: float, mask: int) -> bool:
-	if not system or path.is_empty() or path_index >= path.size():
-		return false
-	
 	# Check current position
 	if is_circle_position_unsafe(system, current_pos, agent_full_size, mask):
 		return false
 	
 	# Check next waypoint
-	if path_index < path.size():
-		var next_waypoint = path[path_index]
-		if is_circle_position_unsafe(system, next_waypoint, agent_full_size, mask):
-			return false
-		if not is_safe_circle_path(system, current_pos, next_waypoint, agent_full_size, mask):
-			return false
-	
+	if is_circle_position_unsafe(system, path[path_index], agent_full_size, mask):
+		return false
+	if not is_safe_circle_path(system, current_pos, path[path_index], agent_full_size, mask):
+		return false
+
 	return true
 
 static func find_closest_safe_point(system: PathfinderSystem, unsafe_pos: Vector2, agent_full_size: float, mask: int) -> Vector2:
@@ -401,15 +396,16 @@ static func smooth_circle_path(system: PathfinderSystem, path: PackedVector2Arra
 	
 	return smoothed
 
+# pathfinding
 static func find_path_for_circle(system: PathfinderSystem, start: Vector2, end: Vector2, agent_full_size: float = PathfindingConstants.SAFETY_MARGIN, mask: int = 1) -> PackedVector2Array:
 	print("=== PATHFINDING REQUEST ===")
-	print("Start: ", start, " End: ", end, " agent_full_size: ", agent_full_size, " mask: ", mask)
-	print("Total obstacles: ", system.obstacles.size())
+	#print("Start: ", start, " End: ", end, " agent_full_size: ", agent_full_size, " mask: ", mask)
+	#print("Total obstacles: ", system.obstacles.size())
 	
 	# Log all obstacle positions and states
-	for i in range(system.obstacles.size()):
-		var obs: PathfinderObstacle = system.obstacles[i]
-		print("Obstacle ", i, ": pos=", obs.global_position, " static=", obs.is_static, " poly=", obs.cached_world_polygon)
+	#for i in range(system.obstacles.size()):
+		#var obs: PathfinderObstacle = system.obstacles[i]
+		#print("Obstacle ", i, ": pos=", obs.global_position, " static=", obs.is_static, " poly=", obs.cached_world_polygon)
 	
 	if PathfindingUtils.is_safe_circle_path(system, start, end, agent_full_size, mask):
 		print("Using direct path")
@@ -418,8 +414,8 @@ static func find_path_for_circle(system: PathfinderSystem, start: Vector2, end: 
 	var start_grid = PathfindingUtils.find_safe_circle_position(system, start, agent_full_size, mask)
 	var end_grid = PathfindingUtils.find_safe_circle_position(system, end, agent_full_size, mask)
 	
-	print("Start grid pos: ", start_grid, " (safe: ", start_grid != Vector2.INF, ")")
-	print("End grid pos: ", end_grid, " (safe: ", end_grid != Vector2.INF, ")")
+	#print("Start grid pos: ", start_grid, " (safe: ", start_grid != Vector2.INF, ")")
+	#print("End grid pos: ", end_grid, " (safe: ", end_grid != Vector2.INF, ")")
 	
 	if start_grid == Vector2.INF or end_grid == Vector2.INF:
 		print("No safe grid positions found - PATH BLOCKED")

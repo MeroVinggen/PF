@@ -120,6 +120,7 @@ func _get_sectors_in_radius(center_pos: Vector2, radius: float) -> Array[Vector2
 	return result
 
 func get_agents_near_obstacle_and_trigger_path_recalc(obstacle: PathfinderObstacle) -> void:
+	return
 	var obstacle_sectors = _get_sectors_in_radius(obstacle.global_position, obstacle.cached_max_radius)
 	var visited: Dictionary = {}
 	

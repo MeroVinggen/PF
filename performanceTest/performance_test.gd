@@ -249,7 +249,7 @@ func _update_agent_movement(delta):
 		var current_target = agent.get_meta("target_pos")
 		var distance = agent.get_meta("distance")
 		var direction = agent.get_meta("direction")
-		var update_current_target = agent.get_next_waypoint()
+		var update_current_target = agent.get_next_waypoint_with_auto_rebuilt()
 		
 		if update_current_target == current_target:
 			distance = agent.global_position.distance_to(current_target)
